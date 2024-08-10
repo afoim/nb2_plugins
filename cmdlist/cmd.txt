@@ -2,6 +2,7 @@ Tsukasa Yuzaki INFO
 使用NoneBot2框架
 特别鸣谢：ChatGPT、Claude
 制作者：二叉树树
+插件开源仓库：https://github.com/AcoFork/mynbp
 
 可用插件：
 （使用"/help 插件名"获取插件使用帮助）

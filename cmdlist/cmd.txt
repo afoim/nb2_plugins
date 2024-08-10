@@ -1,0 +1,55 @@
+Tsukasa Yuzaki INFO
+使用NoneBot2框架
+特别鸣谢：ChatGPT、Claude
+制作者：二叉树树
+
+可用插件：
+（使用"/help 插件名"获取插件使用帮助）
+bilicover
+bilicover
+ipinfo
+ping
+娶群友
+openport
+ri
+sleep
+whois
+
+###bilicover
+命令：/bilicover 《哔哩哔哩视频URL》
+作用：提取哔哩哔哩视频封面
+
+###bilicover
+命令：/bilimusic 《哔哩哔哩视频URL》
+作用：提取哔哩哔哩视频音乐
+
+###ipinfo
+命令：/ipinfo 《IP或域名》
+作用：查询IP或域名的信息
+
+###ping
+命令：/ping 《IP或域名》
+作用：PING IP或域名
+
+###娶群友
+命令：
+娶群友
+强娶 @人
+离婚
+我的群老婆
+
+###openport
+命令：/openport 《IP或域名》
+作用：检测IP或域名的开放端口
+
+###ri
+命令：/hr、/vr
+作用：随机横屏、竖屏美图
+
+###sleep
+命令：早安、晚安
+作用：让Bot记录你的睡眠
+
+###whois
+命令：/whois 《域名》
+作用：查询域名的whois记录

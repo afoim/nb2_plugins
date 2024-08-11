@@ -60,4 +60,4 @@ async def handle_screenshot(bot: Bot, event: Event):
         await bot.send(event, reply)
     except Exception as e:
         logger.error(f"截图失败: {e}")
-        await screenshot_matcher.finish("截图失败，请稍后再试。")
+        return

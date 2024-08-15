@@ -4,23 +4,15 @@ Tsukasa Yuzaki INFO
 制作者：二叉树树
 插件开源仓库：https://github.com/AcoFork/mynbp
 
-可用插件：
-（使用"/help 插件名"获取插件使用帮助）
-bilicover
-bilicover
-ipinfo
-ping
-娶群友
-openport
-ri
-sleep
-whois
+###recall
+命令：引用Bot发送的一条消息，然后附上/recall即可
+作用：撤回Bot发送的消息
 
 ###bilicover
 命令：/bilicover 《哔哩哔哩视频URL》
 作用：提取哔哩哔哩视频封面
 
-###bilicover
+###bilimusic
 命令：/bilimusic 《哔哩哔哩视频URL》
 作用：提取哔哩哔哩视频音乐
 

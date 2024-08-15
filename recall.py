@@ -18,17 +18,20 @@ async def handle_recall(bot: Bot, event: GroupMessageEvent, state: T_State):
     # 检查是否有引用消息
     reply = event.reply
     if reply:
-        # 如果有引用消息,尝试撤回引用的消息
+        # 如果有引用消息, 尝试撤回引用的消息
         message_id = reply.message_id
     else:
-        # 如果没有引用消息,尝试撤回最后一条消息
+        # 如果没有引用消息, 尝试撤回最后一条消息
         group_id = event.group_id
         if group_id not in last_message:
             await recall.finish("没有可以撤回的消息")
         message_id = last_message[group_id]
     
     try:
+        # 尝试撤回机器人发送的消息
         await bot.delete_msg(message_id=message_id)
+        # 成功撤回后，尝试撤回发起人的 /recall 消息
+        await bot.delete_msg(message_id=event.message_id)
     except Exception as e:
         return
 

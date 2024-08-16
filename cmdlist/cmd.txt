@@ -46,3 +46,7 @@ Tsukasa Yuzaki INFO
 ###whois
 命令：/whois 《域名》
 作用：查询域名的whois记录
+
+###表情包提取
+命令：表情包提取
+作用：发送“表情包提取”后发送你想要获得URL的表情包，然后Bot会将URL发送给你

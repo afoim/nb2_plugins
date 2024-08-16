@@ -1,4 +1,4 @@
-from nonebot import on_command, on_message
+from nonebot import on_command
 from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, Message
 from nonebot.plugin import PluginMetadata
 from nonebot.typing import T_State
@@ -8,8 +8,6 @@ __plugin_meta__ = PluginMetadata(
     description="撤回机器人发送的消息",
     usage="/recall [引用消息]",
 )
-
-last_message = {}
 
 recall = on_command("recall", priority=5, block=True)
 
@@ -21,11 +19,8 @@ async def handle_recall(bot: Bot, event: GroupMessageEvent, state: T_State):
         # 如果有引用消息, 尝试撤回引用的消息
         message_id = reply.message_id
     else:
-        # 如果没有引用消息, 尝试撤回最后一条消息
-        group_id = event.group_id
-        if group_id not in last_message:
-            await recall.finish("没有可以撤回的消息")
-        message_id = last_message[group_id]
+        # 如果没有引用消息, 无法撤回
+        await recall.finish("请引用要撤回的消息")
     
     try:
         # 尝试撤回机器人发送的消息
@@ -33,12 +28,4 @@ async def handle_recall(bot: Bot, event: GroupMessageEvent, state: T_State):
         # 成功撤回后，尝试撤回发起人的 /recall 消息
         await bot.delete_msg(message_id=event.message_id)
     except Exception as e:
-        return
-
-# 记录机器人发送的最后一条消息
-record_last_message = on_message(priority=5, block=False)
-
-@record_last_message.handle()
-async def handle_record(bot: Bot, event: GroupMessageEvent):
-    if event.user_id == bot.self_id:
-        last_message[event.group_id] = event.message_id
+        await recall.finish(f"撤回失败：{str(e)}")

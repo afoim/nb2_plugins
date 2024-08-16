@@ -1,11 +1,10 @@
 import os
 import aiohttp
 from nonebot import on_command
-from nonebot.rule import to_me
 from nonebot.typing import T_State
 from nonebot.adapters.onebot.v11 import Bot, Event, MessageSegment, MessageEvent
 
-extract_emoji = on_command("表情包提取", rule=to_me(), priority=5)
+extract_emoji = on_command("表情包提取", priority=5)
 
 @extract_emoji.handle()
 async def handle_first_receive(bot: Bot, event: Event, state: T_State):

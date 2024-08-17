@@ -149,6 +149,8 @@ def get_system_info():
     battery = psutil.sensors_battery()
     info["电池状态"] = "插电" if battery is None else ("充电" if battery.power_plugged else "电池" if battery.percent < 100 else "已充满")
 
+    return info  # 确保返回 info 字典
+
 def print_system_info():
     system_info = get_system_info()
     for key, value in system_info.items():

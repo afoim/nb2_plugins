@@ -5,3 +5,5 @@ psutil
 Wappalyzer
 python-whois
 playwright
+nonebot_plugin_apscheduler
+distro

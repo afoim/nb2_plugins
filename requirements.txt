@@ -3,7 +3,9 @@ nonebot-adapter-onebot
 aiohttp
 psutil
 Wappalyzer
+python-Wappalyzer
 python-whois
 playwright
 nonebot_plugin_apscheduler
 distro
+setuptools

@@ -48,7 +48,11 @@ async def handle_screenshot(bot: Bot, event: Event):
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
-            page = await browser.new_page()
+            context = await browser.new_context(
+                locale='zh-CN',
+                timezone_id='Asia/Shanghai'
+            )
+            page = await context.new_page()
             await page.goto(url, wait_until="networkidle")
             screenshot_bytes = await page.screenshot(full_page=True)
             await browser.close()

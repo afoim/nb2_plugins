@@ -1,4 +1,4 @@
-from nonebot import on_command
+from nonebot import on_command, on_message
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent, MessageSegment
 import psutil
 import platform
@@ -8,18 +8,41 @@ import subprocess
 import socket
 import os
 import distro
+from datetime import datetime
+
+# 创建全局计数器
+message_counter = 0
 
 # 创建命令处理器
 info_command = on_command("/status", priority=5)
 
+# 创建消息处理器来计数所有消息
+message_counter_handler = on_message(priority=10, block=False)
+
+@message_counter_handler.handle()
+async def count_message(bot: Bot, event: MessageEvent):
+    global message_counter
+    message_counter += 1
+
 @info_command.handle()
 async def handle_info(bot: Bot, event: MessageEvent):
+    global message_counter
+    
     # 获取Bot的信息
     bot_info = await bot.get_login_info()
     
+    # 获取好友和群聊数量
+    friend_list = await bot.get_friend_list()
+    group_list = await bot.get_group_list()
+    friend_count = len(friend_list)
+    group_count = len(group_list)
+    
     # 获取系统信息
     system_info = get_system_info()
-    system_info["Bot账号"] = f"QQ {bot_info['user_id']}"  # 添加Bot账号信息
+    system_info["Bot账号"] = f"QQ {bot_info['user_id']}"
+    system_info["好友"] = f"{friend_count}个"
+    system_info["群聊"] = f"{group_count}个"
+
     
     # 生成纯文本信息
     text_content = generate_text(system_info)
@@ -90,11 +113,6 @@ def get_gpu_info():
     except ImportError:
         return "GPUtil模块未安装"
 
-import os
-import psutil
-import platform
-from datetime import datetime
-
 def get_system_info():
     info = {}
 
@@ -105,7 +123,7 @@ def get_system_info():
     info["UEFI或BIOS启动"] = "UEFI" if os.path.exists('/sys/firmware/efi') else "BIOS"
 
     # NoneBot2 信息
-    info["NoneBot2版本"] = "2.3.2"  # 这里需要实际获取版本信息的方法
+    info["NoneBot2版本"] = nonebot.__version__
     info["Bot连接协议"] = "OneBot v11"
     info["Bot协议实现"] = "Lagrange.OneBot"
 
@@ -123,7 +141,7 @@ def get_system_info():
     # CPU 信息
     cpu_info = psutil.cpu_freq()
     cpu_usage = psutil.cpu_percent(interval=1, percpu=True)
-    info["CPU型号"] = "Intel(R) N100"
+    info["CPU型号"] = get_cpu_info()
     info["CPU频率"] = f"{cpu_info.current:.2f} MHz"
     info["CPU总占用率"] = f"{sum(cpu_usage) / len(cpu_usage):.1f}%"
     info["CPU各核心占用率"] = ", ".join(f"{x:.1f}%" for x in cpu_usage)
@@ -149,40 +167,8 @@ def get_system_info():
     battery = psutil.sensors_battery()
     info["电池状态"] = "插电" if battery is None else ("充电" if battery.power_plugged else "电池" if battery.percent < 100 else "已充满")
 
-    return info  # 确保返回 info 字典
-
-def print_system_info():
-    system_info = get_system_info()
-    for key, value in system_info.items():
-        print(f"{key}: {value}")
-
+    return info
 
 def generate_text(data):
     text_content = "\n".join([f"{key}: {value}" for key, value in data.items()])
     return text_content
-
-def get_system_uptime():
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(psutil.boot_time()))
-
-def get_ping_latency(host="8.8.8.8"):
-    try:
-        ping = subprocess.Popen(["ping", "-c", "1", host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, error = ping.communicate()
-        if ping.returncode == 0:
-            for line in out.splitlines():
-                if b"time=" in line:
-                    return line.split(b"time=")[-1].split()[0].decode()
-    except Exception:
-        pass
-    return "无法获取网络延迟"
-
-def get_battery_info():
-    battery = psutil.sensors_battery()
-    if battery:
-        return f"{battery.percent}% 剩余电量, 电池状态: {'充电中' if battery.power_plugged else '放电中'}, 预计剩余时间: {battery.secsleft // 3600}小时{(battery.secsleft % 3600) // 60}分钟"
-    return "无法获取电池信息"
-
-def get_swap_info():
-    swap = psutil.swap_memory()
-    return f"{swap.percent}% 使用 ({swap.used / (1024**3):.2f} GB/{swap.total / (1024**3):.2f} GB)"
-

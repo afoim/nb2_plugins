@@ -5,6 +5,7 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment
 import aiohttp
 import socket
 import ipaddress
+import re
 
 ipinfo = on_command("/ipinfo", priority=5)
 
@@ -13,6 +14,12 @@ async def handle_ipinfo(bot: Bot, event: Event, args: Message = CommandArg()):
     target = args.extract_plain_text().strip()
     if not target:
         await ipinfo.finish(MessageSegment.reply(event.message_id) + "请提供要查询的IP地址或域名")
+    
+    # 去除 http:// 或 https:// 前缀
+    target = re.sub(r'^https?://', '', target)
+    
+    # 如果存在路径,只保留域名部分
+    target = target.split('/')[0]
     
     ip = await resolve_domain(target)
     if not ip:

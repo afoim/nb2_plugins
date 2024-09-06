@@ -1,9 +1,7 @@
 import os
 import re
 from nonebot import on_command
-from nonebot.adapters import Bot, Event
-from nonebot.adapters.onebot.v11 import MessageSegment, Message
-from nonebot.params import CommandArg
+from nonebot.adapters.onebot.v11 import Bot, Event, MessageSegment, Message, GroupMessageEvent, PrivateMessageEvent
 
 # 定义命令处理器
 cmd_command = on_command('/cmd')
@@ -61,10 +59,17 @@ async def handle_cmd_command(bot: Bot, event: Event):
             })
 
     try:
-        await bot.call_api(
-            "send_group_forward_msg",
-            group_id=event.group_id,
-            messages=msg_list
-        )
+        if isinstance(event, GroupMessageEvent):  # 如果是群聊
+            await bot.call_api(
+                "send_group_forward_msg",
+                group_id=event.group_id,
+                messages=msg_list
+            )
+        elif isinstance(event, PrivateMessageEvent):  # 如果是私聊
+            await bot.call_api(
+                "send_private_forward_msg",
+                user_id=event.user_id,
+                messages=msg_list
+            )
     except Exception as e:
         await cmd_command.finish(f"发送命令列表失败：{str(e)}")

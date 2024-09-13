@@ -1,5 +1,7 @@
+## NoneBot2
 nonebot2
 nonebot-adapter-onebot
+
 aiohttp
 psutil
 Wappalyzer
@@ -9,3 +11,6 @@ playwright
 nonebot_plugin_apscheduler
 distro
 setuptools
+# selenium
+# webdriver-manager
+# pyppeteer-stealth

@@ -1,4 +1,4 @@
 ## Py缓存文件
-__pycache__/
+__pycache__
 ## 日志文件
 *.log

@@ -24,7 +24,7 @@ async def fetch_image(url: str) -> bytes:
 
 @hr.handle()
 async def handle_hr(bot: Bot, event: Event):
-    image_url = "http://127.0.0.1:8010/h.php"
+    image_url = "https://hrandom.onani.cn"
     image_bytes = await fetch_image(image_url)
     base64_image = base64.b64encode(image_bytes).decode('utf-8')
     reply = MessageSegment.reply(event.message_id) + MessageSegment.image(f"base64://{base64_image}")
@@ -32,7 +32,7 @@ async def handle_hr(bot: Bot, event: Event):
 
 @vr.handle()
 async def handle_vr(bot: Bot, event: Event):
-    image_url = "http://127.0.0.1:8010/v.php"
+    image_url = "https://vrandom.onani.cn"
     image_bytes = await fetch_image(image_url)
     base64_image = base64.b64encode(image_bytes).decode('utf-8')
     reply = MessageSegment.reply(event.message_id) + MessageSegment.image(f"base64://{base64_image}")

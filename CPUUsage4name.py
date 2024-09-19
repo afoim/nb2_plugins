@@ -7,7 +7,7 @@ from nonebot.adapters.onebot.v11 import Bot
 scheduler = require("nonebot_plugin_apscheduler").scheduler
 
 # 配置初始群名片，如果为 None 则使用机器人当前的群名片
-INITIAL_CARD = "Tsukasa Yuzaki"  # 您可以在这里设置初始群名片，或设为 None
+INITIAL_CARD = "和泉妃爱"  # 您可以在这里设置初始群名片，或设为 None
 
 # 用于存储原始群名片的字典
 original_cards = {}

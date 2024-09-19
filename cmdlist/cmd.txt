@@ -1,4 +1,4 @@
-Tsukasa Yuzaki INFO
+AcoFork的
 使用NoneBot2框架
 特别鸣谢：ChatGPT、Claude
 制作者：二叉树树

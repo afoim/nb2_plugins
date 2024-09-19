@@ -107,15 +107,18 @@ def get_gpu_info():
         if gpus:
             gpu_info = []
             for gpu in gpus:
-                gpu_info.append(f"{gpu.name}: {gpu.load * 100:.2f}% 使用 ({gpu.memoryUsed / 1024:.2f} GB/{gpu.memoryTotal / 1024:.2f} GB)")
+                gpu_info.append(f"{gpu.name}: {gpu.load * 100:.2f}% 使用, "
+                                f"显存: {gpu.memoryUsed / 1024:.2f} GB/{gpu.memoryTotal / 1024:.2f} GB, "
+                                f"温度: {gpu.temperature}°C")
             return ", ".join(gpu_info)
         return "无GPU信息"
     except ImportError:
         return "GPUtil模块未安装"
 
+
 def get_system_info():
     info = {}
-
+    
     # 系统信息
     info["系统版本"] = platform.system() + " " + platform.version()
     info["系统架构"] = platform.architecture()[0]
@@ -154,9 +157,8 @@ def get_system_info():
     disk = psutil.disk_usage('/')
     info["存储使用"] = f"{disk.percent:.1f}% ({disk.used / (1024 ** 3):.2f} GB / {disk.total / (1024 ** 3):.2f} GB)"
 
-    # 平均负载
-    load_avg = os.getloadavg()
-    info["平均负载"] = f"{load_avg[0]:.2f} (1分钟), {load_avg[1]:.2f} (5分钟), {load_avg[2]:.2f} (15分钟)"
+    # 获取CPU的平均负载（如不使用getloadavg）
+    info["CPU负载"] = f"{sum(cpu_usage) / len(cpu_usage):.2f}% (基于所有核心)"
 
     # 当前登录用户
     users = psutil.users()
@@ -168,6 +170,7 @@ def get_system_info():
     info["电池状态"] = "插电" if battery is None else ("充电" if battery.power_plugged else "电池" if battery.percent < 100 else "已充满")
 
     return info
+
 
 def generate_text(data):
     text_content = "\n".join([f"{key}: {value}" for key, value in data.items()])

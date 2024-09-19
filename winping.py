@@ -45,15 +45,17 @@ async def resolve_domain(host, address_family):
 
 async def run_ping(target, version_flag=""):
     try:
+        count_flag = "-n 5" if version_flag == "" else version_flag + " -n 5"
         process = await asyncio.create_subprocess_shell(
-            f"ping {version_flag} -c 5 {target}",
+            f"ping {count_flag} {target}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await process.communicate()
         if stdout:
-            return f"\n{stdout.decode().strip()}"
+            return f"\n{stdout.decode('gbk').strip()}"
         if stderr:
-            return f"Error: {stderr.decode().strip()}"
+            return f"Error: {stderr.decode('gbk').strip()}"
     except Exception as e:
         return f"执行ping命令时发生错误: {str(e)}"
+

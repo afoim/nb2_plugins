@@ -14,3 +14,4 @@ setuptools
 # selenium
 # webdriver-manager
 # pyppeteer-stealth
+#pycuda

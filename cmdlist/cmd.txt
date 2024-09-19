@@ -35,9 +35,9 @@ AcoFork的
 离婚
 我的群老婆
 
-###openport
-命令：/openport 《IP或域名》
-作用：检测IP或域名的开放端口
+###nmap
+命令：/nmap 《IP或域名》
+作用：使用nmap xxx扫描域名或IP
 
 ###ri
 命令：/hr、/vr

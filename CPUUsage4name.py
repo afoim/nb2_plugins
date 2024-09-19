@@ -24,14 +24,14 @@ async def update_cpu_usage():
         await asyncio.sleep(5)
         first_run = False
     
-    # 获取CPU使用率，精确到2位小数
-    cpu_percent = round(psutil.cpu_percent(), 2)
+    # 获取整个系统的CPU使用率，精确到2位小数
+    cpu_percent = round(psutil.cpu_percent(interval=None, percpu=False), 2)
     
     # 计算魔力值
     magic_value = int(cpu_percent * 10)
     
     # 格式化CPU使用率和魔力值前缀
-    prefix = f"[魔力值:{magic_value}]"
+    prefix = f"[魔力值:{magic_value}%]"
     
     try:
         bot = get_bot()
@@ -68,6 +68,9 @@ async def update_cpu_usage():
                 
                 # 更新群名片
                 await bot.set_group_card(group_id=group_id, user_id=bot.self_id, card=new_card)
+                
+                # 日志打印新的标签信息
+                #nonebot.logger.info(f"群 {group_id} 的新群名片: {new_card}")
             except Exception as e:
                 nonebot.logger.error(f"更新群 {group_id} 的群名片时发生错误: {e}")
     except Exception as e:

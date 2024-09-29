@@ -7,11 +7,11 @@ import nonebot
 import subprocess
 import socket
 import os
-import distro
 from datetime import datetime
 
-# 创建全局计数器
+# 创建全局计数器和启动时间
 message_counter = 0
+bot_start_time = datetime.now()
 
 # 创建命令处理器
 info_command = on_command("/status", priority=5)
@@ -43,7 +43,6 @@ async def handle_info(bot: Bot, event: MessageEvent):
     system_info["好友"] = f"{friend_count}个"
     system_info["群聊"] = f"{group_count}个"
 
-    
     # 生成纯文本信息
     text_content = generate_text(system_info)
     
@@ -53,77 +52,64 @@ async def handle_info(bot: Bot, event: MessageEvent):
 
 def get_cpu_info():
     try:
-        output = subprocess.check_output("lscpu | grep 'Model name'", shell=True).decode().strip()
-        return output.split(":")[1].strip()
-    except:
+        if platform.system() == "Windows":
+            output = subprocess.check_output("wmic cpu get Name", shell=True).decode().strip().split("\n")[1]
+            return output.strip()
+        else:
+            output = subprocess.check_output("lscpu | grep 'Model name'", shell=True).decode().strip()
+            return output.split(":")[1].strip()
+    except Exception:
         return "无法获取CPU信息"
-
-def get_ip_addresses():
-    ip_addresses = []
-    hostname = socket.gethostname()
-    try:
-        ip_addresses = [ip for ip in socket.gethostbyname_ex(hostname)[2] if not ip.startswith('127.')]
-    except socket.error:
-        pass
-    return ', '.join(ip_addresses) if ip_addresses else "无IP地址"
-
-def get_network_info():
-    net_info = psutil.net_if_addrs()
-    net_status = psutil.net_if_stats()
-    net_io = psutil.net_io_counters(pernic=True)
-    info = []
-    for interface, addrs in net_info.items():
-        for addr in addrs:
-            if addr.family == socket.AF_INET:
-                info.append(f"{interface} (IPv4): {addr.address}")
-            elif addr.family == socket.AF_INET6:
-                info.append(f"{interface} (IPv6): {addr.address}")
-            elif addr.family == psutil.AF_LINK:
-                info.append(f"{interface} (MAC): {addr.address}")
-        if interface in net_status:
-            info.append(f"{interface} 状态: {'up' if net_status[interface].isup else 'down'}, 速度: {net_status[interface].speed} Mbps")
-        if interface in net_io:
-            io = net_io[interface]
-            info.append(f"{interface} 流量: 接收 {io.bytes_recv / (1024**2):.2f} MB, 发送 {io.bytes_sent / (1024**2):.2f} MB")
-    return info
-
-def get_disk_info():
-    partitions = psutil.disk_partitions()
-    info = []
-    for partition in partitions:
-        usage = psutil.disk_usage(partition.mountpoint)
-        info.append(f"{partition.device} ({partition.mountpoint}): {usage.percent}% 使用 ({usage.used / (1024**3):.2f} GB/{usage.total / (1024**3):.2f} GB, 文件系统: {partition.fstype})")
-    return info
-
-def get_top_processes():
-    processes = [(p.info['cpu_percent'], p.info['name']) for p in psutil.process_iter(attrs=['name', 'cpu_percent']) if p.info['cpu_percent'] > 0]
-    processes.sort(reverse=True)
-    return ", ".join([f"{name} ({cpu}%)" for cpu, name in processes[:5]]) if processes else "无数据"
 
 def get_gpu_info():
     try:
-        import GPUtil
-        gpus = GPUtil.getGPUs()
-        if gpus:
-            gpu_info = []
-            for gpu in gpus:
-                gpu_info.append(f"{gpu.name}: {gpu.load * 100:.2f}% 使用, "
-                                f"显存: {gpu.memoryUsed / 1024:.2f} GB/{gpu.memoryTotal / 1024:.2f} GB, "
-                                f"温度: {gpu.temperature}°C")
-            return ", ".join(gpu_info)
-        return "无GPU信息"
-    except ImportError:
-        return "GPUtil模块未安装"
+        # 使用 PowerShell 获取 GPU 信息
+        output = subprocess.check_output(
+            ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion"],
+            shell=True
+        ).decode('gbk').strip()  # 使用 GBK 解码
 
+        # 解析 GPU 信息
+        gpus = output.split("\n")[3:]  # 跳过标题行
+        gpu_info_list = []
+        for gpu in gpus:
+            if gpu.strip():  # 如果当前行有内容
+                details = gpu.split()
+                name = " ".join(details[:-2])  # 名称可能由多个单词组成
+                ram = f"{int(details[-2]) / (1024 ** 3):.2f} GB" if details[-2].isdigit() else "N/A"
+                driver_version = details[-1]
+                gpu_info_list.append({
+                    "型号": name,
+                    "显存": ram,
+                    "驱动版本": driver_version
+                })
+        return gpu_info_list
+    except Exception as e:
+        return f"无法获取GPU信息，错误: {str(e)}"
+
+def get_windows_edition():
+    try:
+        # 使用 PowerShell 获取详细的 Windows 版本信息
+        output = subprocess.check_output(
+            ["powershell", "-Command", "(Get-WmiObject -Class Win32_OperatingSystem).Caption"],
+            shell=True
+        ).decode('gbk').strip()  # 使用 GBK 解码
+        return output
+    except Exception as e:
+        return f"无法获取系统版本信息，错误: {str(e)}"
 
 def get_system_info():
     info = {}
     
     # 系统信息
-    info["系统版本"] = platform.system() + " " + platform.version()
+    system_version = platform.system() + " " + platform.version()
+    if platform.system() == "Windows":
+        edition = get_windows_edition()
+        system_version = edition if edition else system_version
+
+    info["系统版本"] = system_version
     info["系统架构"] = platform.architecture()[0]
     info["内核版本"] = platform.release()
-    info["UEFI或BIOS启动"] = "UEFI" if os.path.exists('/sys/firmware/efi') else "BIOS"
 
     # NoneBot2 信息
     info["NoneBot2版本"] = nonebot.__version__
@@ -139,7 +125,7 @@ def get_system_info():
     info["系统运行时间"] = str(datetime.now() - datetime.fromtimestamp(psutil.boot_time()))
 
     # Bot 启动时间
-    info["本次Bot启动时间"] = str(datetime.now() - datetime.fromtimestamp(psutil.boot_time()))  # 需要实际获取Bot启动时间的方法
+    info["本次Bot启动时间"] = str(datetime.now() - bot_start_time)
 
     # CPU 信息
     cpu_info = psutil.cpu_freq()
@@ -149,6 +135,10 @@ def get_system_info():
     info["CPU总占用率"] = f"{sum(cpu_usage) / len(cpu_usage):.1f}%"
     info["CPU各核心占用率"] = ", ".join(f"{x:.1f}%" for x in cpu_usage)
 
+    # GPU 信息
+    gpu_info = get_gpu_info()
+    info["GPU信息"] = gpu_info
+
     # 内存信息
     mem = psutil.virtual_memory()
     info["内存使用"] = f"{mem.percent:.1f}% ({mem.used / (1024 ** 3):.2f} GB / {mem.total / (1024 ** 3):.2f} GB)"
@@ -157,8 +147,10 @@ def get_system_info():
     disk = psutil.disk_usage('/')
     info["存储使用"] = f"{disk.percent:.1f}% ({disk.used / (1024 ** 3):.2f} GB / {disk.total / (1024 ** 3):.2f} GB)"
 
-    # 获取CPU的平均负载（如不使用getloadavg）
-    info["CPU负载"] = f"{sum(cpu_usage) / len(cpu_usage):.2f}% (基于所有核心)"
+    # 网络流量信息
+    net_io = psutil.net_io_counters()
+    info["总接收"] = f"{net_io.bytes_recv / (1024 ** 2):.2f} MB"
+    info["总发送"] = f"{net_io.bytes_sent / (1024 ** 3):.2f} GB"
 
     # 当前登录用户
     users = psutil.users()
@@ -171,7 +163,47 @@ def get_system_info():
 
     return info
 
-
 def generate_text(data):
-    text_content = "\n".join([f"{key}: {value}" for key, value in data.items()])
-    return text_content
+    text_content = f"""
+AcoFork的
+NoneBot {data['NoneBot2版本']}
+协议：{data['Bot连接协议']}
+Python {data['Python版本']}
+{data['Bot账号']}
+
+系统：{data['系统版本']}
+架构：{data['系统架构']}
+初次启动：{data['系统启动时间']}
+已运行 {data['系统运行时间']}
+用户：{data['当前登录用户']}
+电源状态：{data['电池状态']}
+本次Bot运行 {data['本次Bot启动时间']}
+
+CPU：
+型号：{data['CPU型号']}
+频率：{data['CPU频率']}
+总占用：{data['CPU总占用率']}
+各核心占用：{data['CPU各核心占用率']}
+
+""""GPU:"
+    for gpu in data["GPU信息"]:
+        text_content += f"""
+型号：{gpu['型号']}
+显存：{gpu['显存']}
+"""
+    text_content += f"""
+内存：
+使用量：{data['内存使用']}
+
+存储：
+总使用率：{data['存储使用']}
+
+网络：
+总接收：{data['总接收']}
+总发送：{data['总发送']}
+
+打印时间：{datetime.now().strftime('%Y/%m/%d %H:%M:%S')}
+"""
+    return text_content.strip()
+
+# 运行 NoneBot

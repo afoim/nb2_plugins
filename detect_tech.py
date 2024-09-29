@@ -6,7 +6,7 @@ from Wappalyzer import Wappalyzer, WebPage
 import aiohttp
 
 # 创建一个命令处理器
-detect_tech = on_command("/detect_tech", priority=5)
+detect_tech = on_command("技术栈", priority=5)
 
 @detect_tech.handle()
 async def handle_detect_tech(bot: Bot, event: Event, args: Message = CommandArg()):

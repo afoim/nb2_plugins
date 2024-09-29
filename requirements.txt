@@ -11,6 +11,10 @@ playwright
 nonebot_plugin_apscheduler
 distro
 setuptools
+wmi
+pywin32
+gputil
+
 # selenium
 # webdriver-manager
 # pyppeteer-stealth

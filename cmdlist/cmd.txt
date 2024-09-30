@@ -2,7 +2,9 @@ AcoFork的
 使用NoneBot2框架
 特别鸣谢：ChatGPT、Claude
 制作者：二叉树树
-插件开源仓库：https://github.com/AcoFork/mynbp
+插件开源仓库：https://github.com/afoim/nb2_plugins
+AD：
+随机图：https://pic.onani.cn
 
 ###test_url
 命令：test_url

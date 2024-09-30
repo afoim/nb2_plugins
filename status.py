@@ -2,12 +2,10 @@ from nonebot import on_command, on_message
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent, MessageSegment
 import psutil
 import platform
-import time
-import nonebot
 import subprocess
-import socket
-import os
 from datetime import datetime
+import nonebot
+import distro  # 新增导入
 
 # 创建全局计数器和启动时间
 message_counter = 0
@@ -42,6 +40,9 @@ async def handle_info(bot: Bot, event: MessageEvent):
     system_info["Bot账号"] = f"QQ {bot_info['user_id']}"
     system_info["好友"] = f"{friend_count}个"
     system_info["群聊"] = f"{group_count}个"
+    
+    # 获取连接协议
+    system_info["Bot连接协议"] = bot.adapter.get_name()  # 获取适配器名称
 
     # 生成纯文本信息
     text_content = generate_text(system_info)
@@ -50,71 +51,48 @@ async def handle_info(bot: Bot, event: MessageEvent):
     reply_message = MessageSegment.reply(event.message_id) + MessageSegment.text(text_content)
     await bot.send(event, reply_message)
 
+
 def get_cpu_info():
     try:
-        if platform.system() == "Windows":
-            output = subprocess.check_output("wmic cpu get Name", shell=True).decode().strip().split("\n")[1]
-            return output.strip()
-        else:
-            output = subprocess.check_output("lscpu | grep 'Model name'", shell=True).decode().strip()
-            return output.split(":")[1].strip()
+        output = subprocess.check_output("lscpu", shell=True).decode().strip()
+        cpu_model = None
+        for line in output.split("\n"):
+            if "Model name" in line:
+                cpu_model = line.split(":")[1].strip()
+                break
+        # 获取核数和线程数
+        cpu_cores = psutil.cpu_count(logical=False)  # 物理核心数
+        cpu_threads = psutil.cpu_count(logical=True)  # 逻辑核心数
+        return f"{cpu_model} ({cpu_cores}核 {cpu_threads}线程)"
     except Exception:
         return "无法获取CPU信息"
 
 def get_gpu_info():
     try:
-        # 使用 PowerShell 获取 GPU 信息
-        output = subprocess.check_output(
-            ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion"],
-            shell=True
-        ).decode('gbk').strip()  # 使用 GBK 解码
-
-        # 解析 GPU 信息
-        gpus = output.split("\n")[3:]  # 跳过标题行
+        output = subprocess.check_output("lspci | grep -i vga", shell=True).decode().strip()
+        gpus = output.split("\n")
         gpu_info_list = []
         for gpu in gpus:
             if gpu.strip():  # 如果当前行有内容
-                details = gpu.split()
-                name = " ".join(details[:-2])  # 名称可能由多个单词组成
-                ram = f"{int(details[-2]) / (1024 ** 3):.2f} GB" if details[-2].isdigit() else "N/A"
-                driver_version = details[-1]
-                gpu_info_list.append({
-                    "型号": name,
-                    "显存": ram,
-                    "驱动版本": driver_version
-                })
+                # 提取型号部分
+                model = gpu.split(":")[2].strip() if len(gpu.split(":")) > 2 else gpu
+                gpu_info_list.append({"型号": model})
         return gpu_info_list
     except Exception as e:
         return f"无法获取GPU信息，错误: {str(e)}"
-
-def get_windows_edition():
-    try:
-        # 使用 PowerShell 获取详细的 Windows 版本信息
-        output = subprocess.check_output(
-            ["powershell", "-Command", "(Get-WmiObject -Class Win32_OperatingSystem).Caption"],
-            shell=True
-        ).decode('gbk').strip()  # 使用 GBK 解码
-        return output
-    except Exception as e:
-        return f"无法获取系统版本信息，错误: {str(e)}"
 
 def get_system_info():
     info = {}
     
     # 系统信息
     system_version = platform.system() + " " + platform.version()
-    if platform.system() == "Windows":
-        edition = get_windows_edition()
-        system_version = edition if edition else system_version
-
+    info["发行版"] = distro.name() + " " + distro.version()  # 获取发行版信息
     info["系统版本"] = system_version
     info["系统架构"] = platform.architecture()[0]
-    info["内核版本"] = platform.release()
+    info["内核版本"] = platform.release()  # 这里是内核版本
 
     # NoneBot2 信息
     info["NoneBot2版本"] = nonebot.__version__
-    info["Bot连接协议"] = "OneBot v11"
-    info["Bot协议实现"] = "Lagrange.OneBot"
 
     # Python 信息
     info["Python版本"] = platform.python_version()
@@ -171,13 +149,15 @@ NoneBot {data['NoneBot2版本']}
 Python {data['Python版本']}
 {data['Bot账号']}
 
+发行版：{data['发行版']}
 系统：{data['系统版本']}
+内核：{data['内核版本']}
 架构：{data['系统架构']}
 初次启动：{data['系统启动时间']}
-已运行 {data['系统运行时间']}
+已运行 {str(data['系统运行时间']).split('.')[0]}
 用户：{data['当前登录用户']}
 电源状态：{data['电池状态']}
-本次Bot运行 {data['本次Bot启动时间']}
+本次Bot运行 {str(data['本次Bot启动时间']).split('.')[0]}
 
 CPU：
 型号：{data['CPU型号']}
@@ -185,12 +165,10 @@ CPU：
 总占用：{data['CPU总占用率']}
 各核心占用：{data['CPU各核心占用率']}
 
-""""GPU:"
-    for gpu in data["GPU信息"]:
-        text_content += f"""
-型号：{gpu['型号']}
-显存：{gpu['显存']}
+GPU：
 """
+    for gpu in data["GPU信息"]:
+        text_content += f"型号：{gpu['型号']}\n"
     text_content += f"""
 内存：
 使用量：{data['内存使用']}
@@ -205,5 +183,3 @@ CPU：
 打印时间：{datetime.now().strftime('%Y/%m/%d %H:%M:%S')}
 """
     return text_content.strip()
-
-# 运行 NoneBot

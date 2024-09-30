@@ -15,28 +15,9 @@ async def handle_whois(bot: Bot, event: Event, args: Message = CommandArg()):
     try:
         result = whois.whois(domain)
         if result:
-            # 处理状态
-            status = result.status
-            if isinstance(status, list):
-                status = ', '.join(status)
-            elif isinstance(status, str):
-                status = status.replace(',', ', ')
-            
-            # 处理 DNS 服务器
-            dns_servers = result.name_servers
-            if isinstance(dns_servers, list):
-                dns_servers = ', '.join(dns_servers)
-            elif isinstance(dns_servers, str):
-                dns_servers = dns_servers.replace(',', ', ')
-
-            response = (
-                f"域名信息 ({domain}):\n"
-                f"注册商: {result.registrar}\n"
-                f"注册时间: {result.creation_date}\n"
-                f"到期时间: {result.expiration_date}\n"
-                f"DNS服务器: {dns_servers}\n"
-                f"状态: {status}"
-            )
+            # 将所有属性转为字符串
+            whois_info = "\n".join(f"{key}: {value}" for key, value in result.items() if value)
+            response = f"域名信息 ({domain}):\n{whois_info}"
         else:
             response = f"无法获取域名 {domain} 的信息"
     except Exception as e:

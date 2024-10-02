@@ -13,7 +13,7 @@ from nonebot.adapters.onebot.v11 import Message
 __plugin_meta__ = PluginMetadata(
     name="群通知插件",
     description="处理加群和退群通知，显示用户名字",
-    usage="管理员可以使用 /(开启|关闭)(加群|退群)通知 来控制功能，使用 /群通知状态 查看状态"
+    usage="管理员可以使用 /(开启|关闭)(加群|退群)通知 来控制功能，使用 /群通知状态 查看状态，使用 /默认(开启|关闭)(加群|退群)通知 设置默认状态"
 )
 
 # 获取数据目录
@@ -60,33 +60,6 @@ async def handle_group_decrease(bot: Bot, event: GroupDecreaseNoticeEvent):
         user_name = user_info['nickname']
         await group_decrease.finish(f"成员 {user_name}-QQ {user_id} 已离开群。")
 
-toggle_notice = on_command("开启加群通知", aliases={"关闭加群通知", "开启退群通知", "关闭退群通知"}, permission=SUPERUSER)
-
-@toggle_notice.handle()
-async def toggle_group_notice(bot: Bot, event: GroupIncreaseNoticeEvent, state: T_State):
-    global config
-    cmd = state["_prefix"]["raw_command"]
-    group_id = str(event.group_id)
-    
-    if group_id not in config["group_status"]:
-        config["group_status"][group_id] = {}
-    
-    if "开启加群通知" in cmd:
-        config["group_status"][group_id]["increase"] = True
-        message = "加群通知已开启"
-    elif "关闭加群通知" in cmd:
-        config["group_status"][group_id]["increase"] = False
-        message = "加群通知已关闭"
-    elif "开启退群通知" in cmd:
-        config["group_status"][group_id]["decrease"] = True
-        message = "退群通知已开启"
-    elif "关闭退群通知" in cmd:
-        config["group_status"][group_id]["decrease"] = False
-        message = "退群通知已关闭"
-    
-    save_config(config)
-    await toggle_notice.finish(message)
-
 status_notice = on_command("群通知状态", permission=SUPERUSER)
 
 @status_notice.handle()
@@ -115,3 +88,53 @@ async def show_notice_status(bot: Bot, arg: Message = CommandArg()):
     status_msg += "\n管理员可以前往对应群聊发送(开启/关闭)(加群/退群)通知"
     
     await status_notice.finish(status_msg.strip())
+
+toggle_notice = on_command("开启加群通知", aliases={"关闭加群通知", "开启退群通知", "关闭退群通知"}, permission=SUPERUSER)
+
+@toggle_notice.handle()
+async def toggle_group_notice(bot: Bot, state: T_State):
+    global config
+    cmd = state["_prefix"]["raw_command"]
+    
+    group_id = str(state.get("group_id", ""))
+    if group_id not in config["group_status"]:
+        config["group_status"][group_id] = {}
+    
+    if "开启加群通知" in cmd:
+        config["group_status"][group_id]["increase"] = True
+        message = "加群通知已开启"
+    elif "关闭加群通知" in cmd:
+        config["group_status"][group_id]["increase"] = False
+        message = "加群通知已关闭"
+    elif "开启退群通知" in cmd:
+        config["group_status"][group_id]["decrease"] = True
+        message = "退群通知已开启"
+    elif "关闭退群通知" in cmd:
+        config["group_status"][group_id]["decrease"] = False
+        message = "退群通知已关闭"
+    
+    save_config(config)
+    await toggle_notice.finish(message)
+
+default_notice = on_command("默认开启加群通知", aliases={"默认关闭加群通知", "默认开启退群通知", "默认关闭退群通知"}, permission=SUPERUSER)
+
+@default_notice.handle()
+async def set_default_notice(state: T_State):
+    global config
+    cmd = state["_prefix"]["raw_command"]
+    
+    if "默认开启加群通知" in cmd:
+        config["default_status"]["increase"] = True
+        message = "默认加群通知已开启"
+    elif "默认关闭加群通知" in cmd:
+        config["default_status"]["increase"] = False
+        message = "默认加群通知已关闭"
+    elif "默认开启退群通知" in cmd:
+        config["default_status"]["decrease"] = True
+        message = "默认退群通知已开启"
+    elif "默认关闭退群通知" in cmd:
+        config["default_status"]["decrease"] = False
+        message = "默认退群通知已关闭"
+    
+    save_config(config)
+    await default_notice.finish(message)

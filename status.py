@@ -47,8 +47,11 @@ async def handle_info(bot: Bot, event: MessageEvent):
     # 生成纯文本信息
     text_content = generate_text(system_info)
     
-    # 发送文本消息，引用原始消息
-    reply_message = MessageSegment.reply(event.message_id) + MessageSegment.text(text_content)
+    # 确保 reply_message 有效
+    reply_message = MessageSegment.text(text_content)
+    if event.message_id:  # 确保有有效的消息 ID
+        reply_message = MessageSegment.reply(event.message_id) + reply_message
+    
     await bot.send(event, reply_message)
 
 
@@ -142,8 +145,7 @@ def get_system_info():
     return info
 
 def generate_text(data):
-    text_content = f"""
-AcoFork的
+    text_content = f"""AcoFork的
 NoneBot {data['NoneBot2版本']}
 协议：{data['Bot连接协议']}
 Python {data['Python版本']}

@@ -32,6 +32,12 @@ translation_dict = {
     'registrant_address': '注册人地址',
     'registrant_phone_number': '注册人电话',
     'registrant_email': '注册人邮箱',
+    'admin_email': '管理员邮箱',
+    'billing_email': '账单邮箱',
+    'tech_email': '技术支持邮箱',
+    'domain__id': '域名ID',
+    'registrar_id': '注册商ID',
+    'registrar_url': '注册商网址',
 }
 
 @whois_query.handle()

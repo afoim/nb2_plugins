@@ -18,67 +18,77 @@ BLACKLIST = {
     "http://b23.tv",
 }
 
-# 更新正则表达式，仅匹配以 http 或 https 开头的 URL
 url_pattern = re.compile(r'^(https?://\S+)(\s+-a)?$')
 
 screenshot_matcher = on_message(priority=5)
 
-async def wait_for_images(page):
-    await page.evaluate('''()
-    => {
+async def smooth_scroll(page):
+    logger.info("开始执行平滑滚动")
+    await page.evaluate('''
+    () => {
         return new Promise((resolve) => {
-            let images = Array.from(document.querySelectorAll('img'));
-            let loadedImages = 0;
+            let totalHeight = 0;
+            const distance = 100;
+            const timer = setInterval(() => {
+                const scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                totalHeight += distance;
+                console.log(`Scrolled to ${totalHeight}px`);
 
-            if (images.length === 0) {
-                resolve();
-            }
-
-            images.forEach((img) => {
-                if (img.complete) {
-                    loadedImages++;
-                } else {
-                    img.addEventListener('load', () => {
-                        loadedImages++;
-                        if (loadedImages === images.length) {
-                            resolve();
-                        }
-                    });
-                    img.addEventListener('error', () => {
-                        loadedImages++;
-                        if (loadedImages === images.length) {
-                            resolve();
-                        }
-                    });
+                if(totalHeight >= scrollHeight){
+                    clearInterval(timer);
+                    console.log('Scrolling finished');
+                    resolve();
                 }
-            });
-
-            if (loadedImages === images.length) {
-                resolve();
-            }
+            }, 100);
         });
-    }''')
+    }
+    ''')
+    logger.info("平滑滚动完成")
 
 async def take_screenshot(url: str, wait_for_all_resources: bool = False):
+    logger.info(f"开始截图过程，URL: {url}, 等待所有资源: {wait_for_all_resources}")
     async with async_playwright() as p:
+        logger.info("启动 Playwright")
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(locale='zh-CN', timezone_id='Asia/Shanghai')
+        context = await browser.new_context(
+            locale='zh-CN',
+            timezone_id='Asia/Shanghai',
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+            viewport={'width': 1280, 'height': 800},
+            is_mobile=False
+        )
+        
         page = await context.new_page()
+        logger.info("创建新页面")
 
         try:
+            logger.info(f"正在加载页面: {url}")
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            logger.info("等待网络空闲")
+            await page.wait_for_load_state('networkidle')
 
             if wait_for_all_resources:
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                await asyncio.wait_for(wait_for_images(page), timeout=60.0)
+                logger.info("等待所有资源，开始滚动")
+                await smooth_scroll(page)
+                logger.info("滚动完成，再次等待网络空闲")
+                await page.wait_for_load_state('networkidle')
+                #logger.info("额外等待5秒")
+                #await page.wait_for_timeout(5000)
+
+            logger.info("开始截图")
+            screenshot_bytes = await page.screenshot(full_page=True)
+            logger.info("截图完成")
         except PlaywrightTimeoutError:
             logger.warning(f"页面加载超时: {url}")
-        except asyncio.TimeoutError:
-            logger.warning(f"等待图片加载超时: {url}")
+            screenshot_bytes = None
+        except Exception as e:
+            logger.error(f"截图过程中发生错误: {e}")
+            screenshot_bytes = None
+        finally:
+            logger.info("关闭浏览器")
+            await browser.close()
 
-        # 即使超时，也尝试截图
-        screenshot_bytes = await page.screenshot(full_page=True)
-        await browser.close()
         return screenshot_bytes
 
 @screenshot_matcher.handle()
@@ -91,19 +101,28 @@ async def handle_screenshot(bot: Bot, event: Event):
         return
 
     url = match.group(1)
+    logger.info(f"提取的URL: {url}")
 
     if any(blocked in url for blocked in BLACKLIST):
+        logger.info(f"URL在黑名单中: {url}")
         return
 
     wait_for_all_resources = bool(match.group(2))
+    logger.info(f"等待所有资源: {wait_for_all_resources}")
 
     try:
+        logger.info("开始调用截图函数")
         screenshot_bytes = await take_screenshot(url, wait_for_all_resources)
-        reply = Message(MessageSegment.reply(event.message_id))
-        reply += MessageSegment.image(screenshot_bytes)
-
-        await bot.send(event, reply)
+        if screenshot_bytes:
+            logger.info("截图成功，准备发送")
+            reply = Message(MessageSegment.reply(event.message_id))
+            reply += MessageSegment.image(screenshot_bytes)
+            await bot.send(event, reply)
+            logger.info("截图已发送")
+        else:
+            logger.warning("截图失败，返回为None")
+            await bot.send(event, "截图失败，请检查网址是否正确或稍后重试。")
     except Exception as e:
-        logger.error(f"截图失败: {e}")
+        logger.error(f"在handle_screenshot中发生异常: {e}")
         await bot.send(event, f"截图失败: {e}")
         return

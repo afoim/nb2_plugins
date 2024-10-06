@@ -1,0 +1,16 @@
+{
+    "group_status": {
+        "": {
+            "increase": true,
+            "decrease": true
+        },
+        "478760223": {
+            "increase": true,
+            "decrease": true
+        }
+    },
+    "default_status": {
+        "increase": false,
+        "decrease": true
+    }
+}

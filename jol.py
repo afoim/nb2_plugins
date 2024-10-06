@@ -1,9 +1,7 @@
 import json
 import os
-from pathlib import Path
-from datetime import datetime
 from nonebot import on_notice, on_command, get_driver
-from nonebot.adapters.onebot.v11 import GroupIncreaseNoticeEvent, GroupDecreaseNoticeEvent, Bot
+from nonebot.adapters.onebot.v11 import GroupIncreaseNoticeEvent, GroupDecreaseNoticeEvent, Bot, GroupMessageEvent
 from nonebot.permission import SUPERUSER
 from nonebot.plugin import PluginMetadata
 from nonebot.params import CommandArg
@@ -16,26 +14,28 @@ __plugin_meta__ = PluginMetadata(
     usage="管理员可以使用 /(开启|关闭)(加群|退群)通知 来控制功能，使用 /群通知状态 查看状态，使用 /默认(开启|关闭)(加群|退群)通知 设置默认状态"
 )
 
-# 获取数据目录
-try:
-    data_dir = get_driver().config.data_dir
-except AttributeError:
-    data_dir = Path.home() / ".nonebot" / "group_notice_plugin"
-
-# 确保数据目录存在
+# 获取机器人根目录
+driver = get_driver()
+data_dir = os.path.join( 'data' )
 os.makedirs(data_dir, exist_ok=True)
 
 config_file = os.path.join(data_dir, "group_notice_config.json")
 
 def load_config():
     if os.path.exists(config_file):
-        with open(config_file, "r") as f:
-            return json.load(f)
+        with open(config_file, "r", encoding="utf-8") as f:
+            loaded_config = json.load(f)
+            # 确保加载的配置包含所有必要的键
+            if "group_status" not in loaded_config:
+                loaded_config["group_status"] = {}
+            if "default_status" not in loaded_config:
+                loaded_config["default_status"] = {"increase": False, "decrease": True}
+            return loaded_config
     return {"group_status": {}, "default_status": {"increase": False, "decrease": True}}
 
 def save_config(config):
-    with open(config_file, "w") as f:
-        json.dump(config, f)
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=4)
 
 config = load_config()
 
@@ -49,7 +49,7 @@ async def handle_group_increase(bot: Bot, event: GroupIncreaseNoticeEvent):
         user_id = event.user_id
         user_info = await bot.get_group_member_info(group_id=event.group_id, user_id=user_id)
         user_name = user_info['card'] if user_info['card'] else user_info['nickname']
-        await group_increase.finish(f"欢迎新成员 {user_name}-QQ {user_id} 加入群！")
+        await group_increase.finish(f"欢迎“{user_name}” QQ-{user_id} 加入该群喵！")
 
 @group_decrease.handle()
 async def handle_group_decrease(bot: Bot, event: GroupDecreaseNoticeEvent):
@@ -58,7 +58,7 @@ async def handle_group_decrease(bot: Bot, event: GroupDecreaseNoticeEvent):
         user_id = event.user_id
         user_info = await bot.get_stranger_info(user_id=user_id)
         user_name = user_info['nickname']
-        await group_decrease.finish(f"成员 {user_name}-QQ {user_id} 已离开群。")
+        await group_decrease.finish(f"“{user_name}” QQ-{user_id} 已离开该群喵")
 
 status_notice = on_command("群通知状态", permission=SUPERUSER)
 
@@ -92,13 +92,16 @@ async def show_notice_status(bot: Bot, arg: Message = CommandArg()):
 toggle_notice = on_command("开启加群通知", aliases={"关闭加群通知", "开启退群通知", "关闭退群通知"}, permission=SUPERUSER)
 
 @toggle_notice.handle()
-async def toggle_group_notice(bot: Bot, state: T_State):
+async def toggle_group_notice(bot: Bot, event: GroupMessageEvent, state: T_State):
     global config
     cmd = state["_prefix"]["raw_command"]
     
-    group_id = str(state.get("group_id", ""))
+    group_id = str(event.group_id)
     if group_id not in config["group_status"]:
-        config["group_status"][group_id] = {}
+        config["group_status"][group_id] = {
+            "increase": config["default_status"]["increase"],
+            "decrease": config["default_status"]["decrease"]
+        }
     
     if "开启加群通知" in cmd:
         config["group_status"][group_id]["increase"] = True

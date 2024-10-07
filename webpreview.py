@@ -64,24 +64,35 @@ async def take_screenshot(url: str, wait_for_all_resources: bool = False):
 
         try:
             logger.info(f"正在加载页面: {url}")
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            await asyncio.wait_for(
+                page.goto(url, wait_until="domcontentloaded"),
+                timeout=30.0
+            )
             logger.info("等待网络空闲")
-            await page.wait_for_load_state('networkidle')
+            await asyncio.wait_for(
+                page.wait_for_load_state('networkidle'),
+                timeout=30.0
+            )
 
             if wait_for_all_resources:
                 logger.info("等待所有资源，开始滚动")
-                await smooth_scroll(page)
+                await asyncio.wait_for(
+                    smooth_scroll(page),
+                    timeout=30.0
+                )
                 logger.info("滚动完成，再次等待网络空闲")
-                await page.wait_for_load_state('networkidle')
-                #logger.info("额外等待5秒")
-                #await page.wait_for_timeout(5000)
+                await asyncio.wait_for(
+                    page.wait_for_load_state('networkidle'),
+                    timeout=30.0
+                )
 
             logger.info("开始截图")
             screenshot_bytes = await page.screenshot(full_page=True)
             logger.info("截图完成")
-        except PlaywrightTimeoutError:
+        except asyncio.TimeoutError:
             logger.warning(f"页面加载超时: {url}")
-            screenshot_bytes = None
+            logger.info("尝试对已加载内容进行截图")
+            screenshot_bytes = await page.screenshot(full_page=True)
         except Exception as e:
             logger.error(f"截图过程中发生错误: {e}")
             screenshot_bytes = None

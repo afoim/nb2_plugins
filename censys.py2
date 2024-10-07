@@ -1,0 +1,114 @@
+from nonebot import on_command
+from nonebot.adapters import Bot, Event
+from nonebot.params import CommandArg
+from nonebot.adapters.onebot.v11 import Message, MessageSegment, GroupMessageEvent, PrivateMessageEvent
+import aiohttp
+import re
+
+# 替换为你的 Censys API ID 和 Secret
+CENSYS_API_ID = ""
+CENSYS_API_SECRET = ""
+
+censys = on_command("/censys", priority=5)
+
+@censys.handle()
+async def handle_censys(bot: Bot, event: Event, args: Message = CommandArg()):
+    target = args.extract_plain_text().strip()
+    if not target:
+        await censys.finish(MessageSegment.reply(event.message_id) + "请提供要查询的IP地址或域名")
+    
+    # 去除 http:// 或 https:// 前缀
+    target = re.sub(r'^https?://', '', target)
+    
+    info = await search_censys_info(target, event)
+    await send_forward_message(bot, event, info)
+
+async def search_censys_info(target: str, event: Event) -> list:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://search.censys.io/api/v2/hosts/search?resource=hosts&sort=RELEVANCE&per_page=25&virtual_hosts=EXCLUDE&q={target}",
+                auth=aiohttp.BasicAuth(CENSYS_API_ID, CENSYS_API_SECRET)
+            ) as resp:
+                if resp.status != 200:
+                    return [{"type": "node", "data": {"name": "查询失败", "uin": str(event.self_id), "content": "无法获取信息。"}}]
+
+                data = await resp.json()
+
+        results = data.get("result", {}).get("hits", [])
+        if not results:
+            return [{"type": "node", "data": {"name": "未找到信息", "uin": str(event.self_id), "content": "未找到相关信息。"}}]
+
+        response = []
+        for result in results:
+            ip = result.get("ip", "未知")
+            country = result.get("location", {}).get("country", "未知")
+            country_code = result.get("autonomous_system", {}).get("country_code", "未知")
+            city = result.get("location", {}).get("city", "未知")
+            asn = result.get("autonomous_system", {}).get("asn", "未知")
+            description = result.get("autonomous_system", {}).get("description", "未知")
+            postal_code = result.get("location", {}).get("postal_code", "未知")
+            timezone = result.get("location", {}).get("timezone", "未知")
+            coordinates = result.get("location", {}).get("coordinates", {})
+            latitude = coordinates.get("latitude", "未知")
+            longitude = coordinates.get("longitude", "未知")
+            services = result.get("services", [])
+
+            services_info = "\n".join(
+                [f"服务: {s.get('service_name', '未知')}, 端口: {s.get('port', '未知')}, 协议: {s.get('transport_protocol', '未知')}" for s in services]
+            ) or "无服务信息"
+
+            response.append(
+                {
+                    "type": "node",
+                    "data": {
+                        "name": f"IP: {ip}",
+                        "uin": str(event.self_id),
+                        "content": (
+                            f"IP: {ip}\n"
+                            f"国家: {country}\n"
+                            f"国家代码: {country_code}\n"
+                            f"城市: {city}\n"
+                            f"邮政编码: {postal_code}\n"
+                            f"ASN: {asn}\n"
+                            f"描述: {description}\n"
+                            f"时区: {timezone}\n"
+                            f"纬度: {latitude}\n"
+                            f"经度: {longitude}\n"
+                            f"{services_info}\n"
+                        )
+                    }
+                }
+            )
+        return response
+    except Exception as e:
+        return [{"type": "node", "data": {"name": "查询失败", "uin": str(event.self_id), "content": str(e)}}]
+
+
+async def send_forward_message(bot: Bot, event: Event, info):
+    msg_list = [
+        {
+            "type": "node",
+            "data": {
+                "name": "查询结果",
+                "uin": str(event.self_id),
+                "content": f"输入: {event.message}\n"
+            }
+        }
+    ] + info
+
+    try:
+        if isinstance(event, GroupMessageEvent):  # 如果是群聊
+            await bot.call_api(
+                "send_group_forward_msg",
+                group_id=event.group_id,
+                messages=msg_list
+            )
+        elif isinstance(event, PrivateMessageEvent):  # 如果是私聊
+            await bot.call_api(
+                "send_private_forward_msg",
+                user_id=event.user_id,
+                messages=msg_list
+            )
+    except Exception as e:
+        await censys.finish(f"发送查询结果失败：{str(e)}")

@@ -2,3 +2,6 @@
 __pycache__
 ## 日志文件
 *.log
+
+## 敏感文件
+censys.py

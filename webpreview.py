@@ -41,6 +41,13 @@ async def handle_url(bot: Bot, event: Event, state: T_State):
     message = event.get_message()
     url = str(message)
 
+    # 重新加载黑名单
+    blacklist = load_blacklist()
+
+    # 检查 URL 是否在黑名单中
+    if any(pattern.match(url) for pattern in blacklist):
+        return
+
     if not re.match(r'https?://', url):
         return
 
@@ -48,6 +55,7 @@ async def handle_url(bot: Bot, event: Event, state: T_State):
 
     # 创建新的任务来处理截图请求
     asyncio.create_task(process_url(bot, event, url))
+
 
 async def process_url(bot: Bot, event: Event, url: str):
     start_time = time.time()  # 记录开始时间

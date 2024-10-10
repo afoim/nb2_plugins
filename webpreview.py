@@ -1,139 +1,127 @@
-import re
-import asyncio
+import os
+import time
+import base64
+from pathlib import Path
+import asyncio  # 导入 asyncio
+
+# 设置 locale 为中文
+os.environ['LANG'] = 'zh_CN.UTF-8'
+os.environ['LC_ALL'] = 'zh_CN.UTF-8'
+
+import nonebot
 from nonebot import on_message
+from nonebot.adapters.onebot.v11 import Message, MessageSegment
+from nonebot.typing import T_State
 from nonebot.adapters import Bot, Event
-from nonebot.plugin import PluginMetadata
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
-from nonebot.log import logger
-from nonebot.adapters.onebot.v11 import MessageSegment, Message
+from playwright.async_api import async_playwright
+import re
 
-__plugin_meta__ = PluginMetadata(
-    name="网页截图",
-    description="自动对以http/https开头的链接进行网页截图，支持全资源截屏和IPFS图片加载",
-    usage="发送以http/https开头的链接即可触发，添加 '-a' 参数进行全资源截屏",
-)
+# 设置调试模式（True 为调试模式，False 为生产模式）
+DEBUG = False  # 根据需要更改为 True 以启用调试模式
 
-BLACKLIST = {
-    "https://www.bilibili.com/video",
-    "http://b23.tv",
-}
+# 全局匹配 http/https 开头的消息
+url_matcher = on_message(priority=5)
 
-url_pattern = re.compile(r'^(https?://\S+)(\s+-a)?$')
+# 读取黑名单
+def load_blacklist():
+    blacklist = []
+    blacklist_file = Path(__file__).parent / "web_ban" / "web_ban.txt"
+    if blacklist_file.exists():
+        with open(blacklist_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    blacklist.append(line.replace("*", ".*"))
+    return [re.compile(pattern) for pattern in blacklist]
 
-screenshot_matcher = on_message(priority=5)
+blacklist = load_blacklist()
 
-async def smooth_scroll(page):
-    logger.info("开始执行平滑滚动")
-    await page.evaluate('''
-    () => {
-        return new Promise((resolve) => {
-            let totalHeight = 0;
-            const distance = 100;
-            const timer = setInterval(() => {
-                const scrollHeight = document.body.scrollHeight;
-                window.scrollBy(0, distance);
-                totalHeight += distance;
-                console.log(`Scrolled to ${totalHeight}px`);
+@url_matcher.handle()
+async def handle_url(bot: Bot, event: Event, state: T_State):
+    message = event.get_message()
+    url = str(message)
 
-                if(totalHeight >= scrollHeight){
-                    clearInterval(timer);
-                    console.log('Scrolling finished');
-                    resolve();
-                }
-            }, 100);
-        });
-    }
-    ''')
-    logger.info("平滑滚动完成")
+    if not re.match(r'https?://', url):
+        return
 
-async def take_screenshot(url: str, wait_for_all_resources: bool = False):
-    logger.info(f"开始截图过程，URL: {url}, 等待所有资源: {wait_for_all_resources}")
+    nonebot.logger.info("准备加载URL")
+
+    # 创建新的任务来处理截图请求
+    asyncio.create_task(process_url(bot, event, url))
+
+async def process_url(bot: Bot, event: Event, url: str):
+    start_time = time.time()  # 记录开始时间
+
     async with async_playwright() as p:
-        logger.info("启动 Playwright")
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            locale='zh-CN',
-            timezone_id='Asia/Shanghai',
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
-            viewport={'width': 1280, 'height': 800},
-            is_mobile=False
-        )
+        nonebot.logger.info("启动Playwright")
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         
+        # 根据 DEBUG 开关选择浏览器启动模式
+        browser_args = []
+        headless = not DEBUG  # 调试模式时为 False，其他情况为 True
+        if DEBUG:
+            browser_args = ["--no-sandbox", "--disable-setuid-sandbox", f"--display={os.environ.get('DISPLAY', ':0')}"]
+
+        # 使用 Chromium 浏览器
+        browser = await p.chromium.launch(headless=headless, args=browser_args)
+        nonebot.logger.info("启动Chromium浏览器")
+        
+        context = await browser.new_context(
+            user_agent=user_agent,
+            extra_http_headers={
+                "Accept-Language": "zh-CN,zh;q=0.9"
+            }
+        )
+        nonebot.logger.info("创建新的浏览器上下文")
         page = await context.new_page()
-        logger.info("创建新页面")
+        nonebot.logger.info("创建新的页面")
 
         try:
-            logger.info(f"正在加载页面: {url}")
-            await asyncio.wait_for(
-                page.goto(url, wait_until="domcontentloaded"),
-                timeout=30.0
-            )
-            logger.info("等待网络空闲")
-            await asyncio.wait_for(
-                page.wait_for_load_state('networkidle'),
-                timeout=30.0
-            )
+            nonebot.logger.info("开始导航到URL")
+            await page.goto(url, timeout=60000)
+            nonebot.logger.info("成功导航到URL，等待3s")
+            await page.wait_for_timeout(3000)  # 等待3秒
 
-            if wait_for_all_resources:
-                logger.info("等待所有资源，开始滚动")
-                await asyncio.wait_for(
-                    smooth_scroll(page),
-                    timeout=30.0
-                )
-                logger.info("滚动完成，再次等待网络空闲")
-                await asyncio.wait_for(
-                    page.wait_for_load_state('networkidle'),
-                    timeout=30.0
-                )
+            nonebot.logger.info("等待结束")
 
-            logger.info("开始截图")
-            screenshot_bytes = await page.screenshot(full_page=True)
-            logger.info("截图完成")
-        except asyncio.TimeoutError:
-            logger.warning(f"页面加载超时: {url}")
-            logger.info("尝试对已加载内容进行截图")
-            screenshot_bytes = await page.screenshot(full_page=True)
+            # 模拟鼠标滚动到页面底部
+            nonebot.logger.info("开始模拟滚动")
+            scroll_height = await page.evaluate("document.body.scrollHeight")
+            current_position = 0
+            step = 500  # 每次滚动的像素数
+
+            while current_position < scroll_height:
+                await page.mouse.wheel(0, step)  # 向下滚动
+                current_position += step
+                await page.wait_for_timeout(50)  # 减少等待时间以提高效率
+
+                # 更新滚动高度
+                scroll_height = await page.evaluate("document.body.scrollHeight")
+
+            nonebot.logger.info("滚动到底部，准备截图")
+            
+            # 截图并转换为Base64编码
+            screenshot = await page.screenshot(full_page=True)
+            nonebot.logger.info("获取全截图成功")
+            base64_image = base64.b64encode(screenshot).decode('utf-8')
+            nonebot.logger.info("已转为base64编码，截图成功，准备发送")
+
+            # 发送截图
+            await bot.send(event, MessageSegment.reply(event.message_id) + MessageSegment.image(f"base64://{base64_image}"))
+
         except Exception as e:
-            logger.error(f"截图过程中发生错误: {e}")
-            screenshot_bytes = None
+            nonebot.logger.error(f"截图过程中发生错误：{str(e)}")
         finally:
-            logger.info("关闭浏览器")
+            nonebot.logger.info("关闭浏览器")
             await browser.close()
 
-        return screenshot_bytes
+    end_time = time.time()  # 记录结束时间
+    total_time = end_time - start_time
+    nonebot.logger.info(f"总耗时: {total_time:.2f} 秒")
 
-@screenshot_matcher.handle()
-async def handle_screenshot(bot: Bot, event: Event):
-    message = event.get_message()
-    message_text = message.extract_plain_text().strip()
-
-    match = url_pattern.match(message_text)
-    if not match:
-        return
-
-    url = match.group(1)
-    logger.info(f"提取的URL: {url}")
-
-    if any(blocked in url for blocked in BLACKLIST):
-        logger.info(f"URL在黑名单中: {url}")
-        return
-
-    wait_for_all_resources = bool(match.group(2))
-    logger.info(f"等待所有资源: {wait_for_all_resources}")
-
-    try:
-        logger.info("开始调用截图函数")
-        screenshot_bytes = await take_screenshot(url, wait_for_all_resources)
-        if screenshot_bytes:
-            logger.info("截图成功，准备发送")
-            reply = Message(MessageSegment.reply(event.message_id))
-            reply += MessageSegment.image(screenshot_bytes)
-            await bot.send(event, reply)
-            logger.info("截图已发送")
-        else:
-            logger.warning("截图失败，返回为None")
-            await bot.send(event, "截图失败，请检查网址是否正确或稍后重试。")
-    except Exception as e:
-        logger.error(f"在handle_screenshot中发生异常: {e}")
-        await bot.send(event, f"截图失败: {e}")
-        return
+# 插件元数据
+__plugin_meta__ = {
+    "name": "网页截图插件",
+    "description": "自动截取用户发送的URL网页",
+    "usage": "发送包含http或https开头的URL即可触发截图"
+}

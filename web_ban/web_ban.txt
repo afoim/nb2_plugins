@@ -1,3 +1,4 @@
 https://www.bilibili.com/video/*
 http://b23.tv/*
 https://b23.tv/*
+http://192.168.124.1

@@ -87,8 +87,8 @@ async def process_url(bot: Bot, event: Event, url: str):
         try:
             nonebot.logger.info("开始导航到URL")
             await page.goto(url, timeout=60000)
-            nonebot.logger.info("成功导航到URL，等待3s")
-            await page.wait_for_timeout(3000)  # 等待3秒
+            nonebot.logger.info("成功导航到URL，等待1s")
+            await page.wait_for_timeout(1000)  # 等待1秒
 
             nonebot.logger.info("等待结束")
 
@@ -120,7 +120,8 @@ async def process_url(bot: Bot, event: Event, url: str):
         except Exception as e:
             nonebot.logger.error(f"截图过程中发生错误：{str(e)}")
         finally:
-            nonebot.logger.info("关闭浏览器")
+            nonebot.logger.info("关闭浏览器上下文和浏览器")
+            await context.close()  # 确保关闭上下文
             await browser.close()
 
     end_time = time.time()  # 记录结束时间

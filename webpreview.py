@@ -2,22 +2,22 @@ import os
 import time
 import base64
 from pathlib import Path
-import asyncio  # 导入 asyncio
-
-# 设置 locale 为中文
-os.environ['LANG'] = 'zh_CN.UTF-8'
-os.environ['LC_ALL'] = 'zh_CN.UTF-8'
+import asyncio
+import re
 
 import nonebot
 from nonebot import on_message
 from nonebot.adapters.onebot.v11 import Message, MessageSegment
 from nonebot.typing import T_State
 from nonebot.adapters import Bot, Event
-from playwright.async_api import async_playwright
-import re
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+
+# 设置 locale 为中文
+os.environ['LANG'] = 'zh_CN.UTF-8'
+os.environ['LC_ALL'] = 'zh_CN.UTF-8'
 
 # 设置调试模式（True 为调试模式，False 为生产模式）
-DEBUG = False  # 根据需要更改为 True 以启用调试模式
+DEBUG = False
 
 # 全局匹配 http/https 开头的消息
 url_matcher = on_message(priority=5)
@@ -28,109 +28,139 @@ def load_blacklist():
     blacklist_file = Path(__file__).parent / "web_ban" / "web_ban.txt"
     if blacklist_file.exists():
         with open(blacklist_file, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    blacklist.append(line.replace("*", ".*"))
+            blacklist = [line.strip().replace("*", ".*") for line in f if line.strip()]
     return [re.compile(pattern) for pattern in blacklist]
 
-blacklist = load_blacklist()
+# 全局 playwright 实例
+playwright = None
+browser = None
+
+async def initialize_playwright():
+    global playwright, browser
+    if playwright is None:
+        playwright = await async_playwright().start()
+        browser_args = ["--no-sandbox", "--disable-setuid-sandbox"]
+        if DEBUG:
+            browser_args.append(f"--display={os.environ.get('DISPLAY', ':0')}")
+        browser = await playwright.chromium.launch(headless=not DEBUG, args=browser_args)
 
 @url_matcher.handle()
 async def handle_url(bot: Bot, event: Event, state: T_State):
     message = event.get_message()
     url = str(message)
 
-    # 重新加载黑名单
-    blacklist = load_blacklist()
-
     # 检查 URL 是否在黑名单中
-    if any(pattern.match(url) for pattern in blacklist):
+    if any(pattern.match(url) for pattern in load_blacklist()):
         return
 
     if not re.match(r'https?://', url):
         return
 
-    nonebot.logger.info("准备加载URL")
+    nonebot.logger.info("准备加载 URL")
 
     # 创建新的任务来处理截图请求
     asyncio.create_task(process_url(bot, event, url))
 
-
 async def process_url(bot: Bot, event: Event, url: str):
-    start_time = time.time()  # 记录开始时间
+    start_time = time.time()
 
-    async with async_playwright() as p:
-        nonebot.logger.info("启动Playwright")
+    await initialize_playwright()
+
+    try:
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        
-        # 根据 DEBUG 开关选择浏览器启动模式
-        browser_args = []
-        headless = not DEBUG  # 调试模式时为 False，其他情况为 True
-        if DEBUG:
-            browser_args = ["--no-sandbox", "--disable-setuid-sandbox", f"--display={os.environ.get('DISPLAY', ':0')}"]
-
-        # 使用 Chromium 浏览器
-        browser = await p.chromium.launch(headless=headless, args=browser_args)
-        nonebot.logger.info("启动Chromium浏览器")
         
         context = await browser.new_context(
             user_agent=user_agent,
-            extra_http_headers={
-                "Accept-Language": "zh-CN,zh;q=0.9"
-            }
+            extra_http_headers={"Accept-Language": "zh-CN,zh;q=0.9"}
         )
-        nonebot.logger.info("创建新的浏览器上下文")
+        nonebot.logger.info("创建了新的浏览器上下文")
+        
         page = await context.new_page()
-        nonebot.logger.info("创建新的页面")
+        nonebot.logger.info("创建了新的页面")
 
+        # 使用更宽松的加载策略
         try:
-            nonebot.logger.info("开始导航到URL")
-            await page.goto(url, timeout=60000)
-            nonebot.logger.info("成功导航到URL，等待1s")
-            await page.wait_for_timeout(1000)  # 等待1秒
+            await page.goto(url, timeout=30000, wait_until='domcontentloaded')
+        except PlaywrightTimeoutError:
+            nonebot.logger.warning("页面加载超时，但继续处理")
 
-            nonebot.logger.info("等待结束")
+        nonebot.logger.info("开始处理页面")
 
-            # 模拟鼠标滚动到页面底部
-            nonebot.logger.info("开始模拟滚动")
-            scroll_height = await page.evaluate("document.body.scrollHeight")
-            current_position = 0
-            step = 500  # 每次滚动的像素数
+        # 实现渐进式滚动并等待图片加载
+        nonebot.logger.info("开始渐进式滚动并等待图片加载")
+        await page.evaluate("""
+            async () => {
+                const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                
+                const scrollStep = async () => {
+                    const scrollHeight = document.documentElement.scrollHeight;
+                    const viewportHeight = window.innerHeight;
+                    let scrollTop = 0;
+                    
+                    while (scrollTop < scrollHeight) {
+                        window.scrollTo(0, scrollTop);
+                        await delay(100);  // 等待一小段时间让新内容加载
+                        
+                        // 检查可见区域内的图片并等待它们加载
+                        const visibleImages = Array.from(document.querySelectorAll('img')).filter(img => {
+                            const rect = img.getBoundingClientRect();
+                            return rect.top >= 0 && rect.bottom <= viewportHeight;
+                        });
+                        
+                        await Promise.all(visibleImages.map(img => {
+                            if (img.complete) return Promise.resolve();
+                            return new Promise(resolve => {
+                                img.onload = img.onerror = resolve;
+                            });
+                        }));
+                        
+                        scrollTop += viewportHeight / 2;  // 滚动半个视口高度
+                    }
+                    
+                    window.scrollTo(0, 0);  // 滚回顶部
+                };
+                
+                await scrollStep();
+            }
+        """)
+        nonebot.logger.info("渐进式滚动和图片加载完成")
 
-            while current_position < scroll_height:
-                await page.mouse.wheel(0, step)  # 向下滚动
-                current_position += step
-                await page.wait_for_timeout(50)  # 减少等待时间以提高效率
+        # 额外等待一小段时间，确保所有内容都已渲染
+        await page.wait_for_timeout(2000)
 
-                # 更新滚动高度
-                scroll_height = await page.evaluate("document.body.scrollHeight")
+        # 截图并转换为Base64编码
+        screenshot = await page.screenshot(full_page=True)
+        nonebot.logger.info("成功捕获全页面截图")
+        base64_image = base64.b64encode(screenshot).decode('utf-8')
+        nonebot.logger.info("已转换为base64编码，准备发送")
 
-            nonebot.logger.info("滚动到底部，准备截图")
-            
-            # 截图并转换为Base64编码
-            screenshot = await page.screenshot(full_page=True)
-            nonebot.logger.info("获取全截图成功")
-            base64_image = base64.b64encode(screenshot).decode('utf-8')
-            nonebot.logger.info("已转为base64编码，截图成功，准备发送")
+        # 发送截图
+        await bot.send(event, MessageSegment.reply(event.message_id) + MessageSegment.image(f"base64://{base64_image}"))
 
-            # 发送截图
-            await bot.send(event, MessageSegment.reply(event.message_id) + MessageSegment.image(f"base64://{base64_image}"))
+    except Exception as e:
+        nonebot.logger.error(f"截图过程中发生错误：{str(e)}")
+    finally:
+        nonebot.logger.info("关闭浏览器上下文")
+        await context.close()
 
-        except Exception as e:
-            nonebot.logger.error(f"截图过程中发生错误：{str(e)}")
-        finally:
-            nonebot.logger.info("关闭浏览器上下文和浏览器")
-            await context.close()  # 确保关闭上下文
-            await browser.close()
-
-    end_time = time.time()  # 记录结束时间
+    end_time = time.time()
     total_time = end_time - start_time
-    nonebot.logger.info(f"总耗时: {total_time:.2f} 秒")
+    nonebot.logger.info(f"总耗时：{total_time:.2f} 秒")
 
 # 插件元数据
 __plugin_meta__ = {
     "name": "网页截图插件",
-    "description": "自动截取用户发送的URL网页",
+    "description": "自动截取用户发送的URL网页，支持懒加载内容",
     "usage": "发送包含http或https开头的URL即可触发截图"
 }
+
+# 清理函数，在机器人关闭时调用
+async def cleanup():
+    global browser, playwright
+    if browser:
+        await browser.close()
+    if playwright:
+        await playwright.stop()
+
+# 注册清理函数，在退出时调用
+nonebot.get_driver().on_shutdown(cleanup)

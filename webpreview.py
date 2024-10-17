@@ -4,6 +4,7 @@ import base64
 from pathlib import Path
 import asyncio
 import re
+import traceback
 
 import nonebot
 from nonebot import on_message
@@ -11,6 +12,16 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment
 from nonebot.typing import T_State
 from nonebot.adapters import Bot, Event
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+
+# 设置日志记录函数
+def log_info(message, function_name="Unknown"):
+    nonebot.logger.info(f"[{function_name}] {message}")
+
+def log_error(message, function_name="Unknown", exc_info=None):
+    error_msg = f"[{function_name}] {message}"
+    if exc_info:
+        error_msg += f"\n{traceback.format_exc()}"
+    nonebot.logger.error(error_msg)
 
 # 设置 locale 为中文
 os.environ['LANG'] = 'zh_CN.UTF-8'
@@ -29,6 +40,8 @@ def load_blacklist():
     if blacklist_file.exists():
         with open(blacklist_file, "r") as f:
             blacklist = [line.strip().replace("*", ".*") for line in f if line.strip()]
+    else:
+        log_info("黑名单文件不存在，使用空列表", "load_blacklist")
     return [re.compile(pattern) for pattern in blacklist]
 
 # 全局 playwright 实例
@@ -37,130 +50,231 @@ browser = None
 
 async def initialize_playwright():
     global playwright, browser
+    function_name = "initialize_playwright"
+    
     if playwright is None:
+        log_info("开始初始化 Playwright", function_name)
         playwright = await async_playwright().start()
-        browser_args = ["--no-sandbox", "--disable-setuid-sandbox"]
+        
+        browser_args = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-web-security",
+            "--disable-features=IsolateOrigins,site-per-process"
+        ]
         if DEBUG:
             browser_args.append(f"--display={os.environ.get('DISPLAY', ':0')}")
+        
+        log_info(f"启动浏览器，参数：{browser_args}", function_name)
         browser = await playwright.chromium.launch(headless=not DEBUG, args=browser_args)
+        log_info("浏览器启动完成", function_name)
+
+async def wait_for_network_idle(page):
+    function_name = "wait_for_network_idle"
+    try:
+        log_info("等待网络活动结束", function_name)
+        await page.wait_for_load_state("networkidle", timeout=10000)
+        log_info("网络活动已结束", function_name)
+    except PlaywrightTimeoutError:
+        log_info("等待网络空闲超时，继续处理", function_name)
+
+async def wait_for_dynamic_content(page):
+    function_name = "wait_for_dynamic_content"
+    log_info("开始等待动态内容加载", function_name)
+    
+    try:
+        result = await page.evaluate("""async () => {
+            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+            let status = [];
+            
+            // 等待图片加载
+            try {
+                const images = Array.from(document.getElementsByTagName('img'));
+                status.push(`找到 ${images.length} 个图片元素`);
+                
+                let loadedImages = 0;
+                await Promise.all(images.map(img => {
+                    if (img.complete) {
+                        loadedImages++;
+                        return Promise.resolve();
+                    }
+                    return new Promise((resolve) => {
+                        img.onload = img.onerror = () => {
+                            loadedImages++;
+                            resolve();
+                        };
+                    });
+                }));
+                status.push(`已加载 ${loadedImages} 个图片`);
+            } catch (e) {
+                status.push(`图片加载过程出错: ${e.message}`);
+            }
+            
+            // 等待动画完成
+            try {
+                const elements = document.querySelectorAll('*');
+                const animatingElements = Array.from(elements).filter(el => {
+                    const style = window.getComputedStyle(el);
+                    return style.animation !== 'none' || style.transition !== 'none';
+                });
+                
+                status.push(`找到 ${animatingElements.length} 个带动画的元素`);
+                if (animatingElements.length > 0) {
+                    await delay(2000);
+                    status.push('已等待动画完成');
+                }
+            } catch (e) {
+                status.push(`动画检测过程出错: ${e.message}`);
+            }
+            
+            // 等待滚动容器填充
+            try {
+                const container = document.querySelector('.scroll-container');
+                if (container) {
+                    status.push('找到滚动容器');
+                    let attempts = 0;
+                    while (container.children.length === 0 && attempts < 20) {
+                        await delay(100);
+                        attempts++;
+                    }
+                    status.push(`滚动容器已填充 ${container.children.length} 个子元素`);
+                    await delay(2000);
+                } else {
+                    status.push('未找到滚动容器');
+                }
+            } catch (e) {
+                status.push(`滚动容器检测过程出错: ${e.message}`);
+            }
+            
+            await delay(1000);
+            status.push('完成所有等待');
+            
+            return status;
+        }""")
+        
+        for status_msg in result:
+            log_info(status_msg, function_name)
+            
+    except Exception as e:
+        log_error(f"等待动态内容时发生错误: {str(e)}", function_name, exc_info=True)
 
 @url_matcher.handle()
 async def handle_url(bot: Bot, event: Event, state: T_State):
+    function_name = "handle_url"
     message = event.get_message()
     url = str(message)
 
-    # 检查 URL 是否在黑名单中
     if any(pattern.match(url) for pattern in load_blacklist()):
+        log_info("URL在黑名单中，已忽略", function_name)
         return
 
     if not re.match(r'https?://', url):
         return
 
-    nonebot.logger.info("准备加载 URL")
-
-    # 创建新的任务来处理截图请求
+    log_info("准备处理URL", function_name)
     asyncio.create_task(process_url(bot, event, url))
 
 async def process_url(bot: Bot, event: Event, url: str):
+    function_name = "process_url"
     start_time = time.time()
+    log_info(f"开始处理URL: {url}", function_name)
 
     await initialize_playwright()
 
     try:
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        
+        log_info("创建浏览器上下文", function_name)
         context = await browser.new_context(
-            user_agent=user_agent,
-            extra_http_headers={"Accept-Language": "zh-CN,zh;q=0.9"}
+            viewport={"width": 1920, "height": 1080},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         )
-        nonebot.logger.info("创建了新的浏览器上下文")
-        
+
+        log_info("创建新页面", function_name)
         page = await context.new_page()
-        nonebot.logger.info("创建了新的页面")
 
-        # 使用更宽松的加载策略
-        try:
-            await page.goto(url, timeout=30000, wait_until='domcontentloaded')
-        except PlaywrightTimeoutError:
-            nonebot.logger.warning("页面加载超时，但继续处理")
+        log_info("开始导航到目标URL", function_name)
+        response = await page.goto(url, timeout=30000, wait_until="domcontentloaded")
+        log_info(f"页面响应状态: {response.status}", function_name)
 
-        nonebot.logger.info("开始处理页面")
+        await wait_for_network_idle(page)
+        await wait_for_dynamic_content(page)
 
-        # 实现渐进式滚动并等待图片加载
-        nonebot.logger.info("开始渐进式滚动并等待图片加载")
-        await page.evaluate("""
-            async () => {
-                const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-                
-                const scrollStep = async () => {
-                    const scrollHeight = document.documentElement.scrollHeight;
-                    const viewportHeight = window.innerHeight;
-                    let scrollTop = 0;
-                    
-                    while (scrollTop < scrollHeight) {
-                        window.scrollTo(0, scrollTop);
-                        await delay(100);  // 等待一小段时间让新内容加载
-                        
-                        // 检查可见区域内的图片并等待它们加载
-                        const visibleImages = Array.from(document.querySelectorAll('img')).filter(img => {
-                            const rect = img.getBoundingClientRect();
-                            return rect.top >= 0 && rect.bottom <= viewportHeight;
-                        });
-                        
-                        await Promise.all(visibleImages.map(img => {
-                            if (img.complete) return Promise.resolve();
-                            return new Promise(resolve => {
-                                img.onload = img.onerror = resolve;
-                            });
-                        }));
-                        
-                        scrollTop += viewportHeight / 2;  // 滚动半个视口高度
-                    }
-                    
-                    window.scrollTo(0, 0);  // 滚回顶部
-                };
-                
-                await scrollStep();
+        # 模拟滚动
+        log_info("开始模拟滚动", function_name)
+        scroll_height = await page.evaluate("document.body.scrollHeight")
+        for i in range(0, scroll_height, 100):  # 每次滚动100px
+            await page.evaluate(f"window.scrollTo(0, {i})")
+            await asyncio.sleep(0.1)  # 等待一会儿以便页面加载
+
+        log_info("模拟滚动完成", function_name)
+
+        # 设置 CSS 以防止字体加载
+        await page.add_style_tag(content=""" 
+            @font-face {
+                font-family: 'CustomFont';
+                src: local('Arial');
+            }
+            * {
+                font-family: 'CustomFont', sans-serif !important;
             }
         """)
-        nonebot.logger.info("渐进式滚动和图片加载完成")
 
-        # 额外等待一小段时间，确保所有内容都已渲染
-        await page.wait_for_timeout(2000)
+        log_info("获取页面尺寸", function_name)
+        dimensions = await page.evaluate("""() => {
+            return {
+                width: Math.max(
+                    document.documentElement.scrollWidth,
+                    document.documentElement.clientWidth
+                ),
+                height: Math.max(
+                    document.documentElement.scrollHeight,
+                    document.documentElement.clientHeight
+                )
+            }
+        }""")
+        log_info(f"页面尺寸: {dimensions}", function_name)
 
-        # 截图并转换为Base64编码
-        screenshot = await page.screenshot(full_page=True)
-        nonebot.logger.info("成功捕获全页面截图")
+        log_info("设置视口大小", function_name)
+        await page.set_viewport_size({
+            'width': dimensions['width'],
+            'height': dimensions['height']
+        })
+
+        log_info("开始截图", function_name)
+        screenshot = await page.screenshot(
+            full_page=True,
+            type='jpeg',
+            quality=85,
+            timeout=60000  # 增加超时时间
+        )
+        log_info(f"截图完成，大小: {len(screenshot)} 字节", function_name)
+
         base64_image = base64.b64encode(screenshot).decode('utf-8')
-        nonebot.logger.info("已转换为base64编码，准备发送")
-
-        # 发送截图
+        log_info("开始发送消息", function_name)
         await bot.send(event, MessageSegment.reply(event.message_id) + MessageSegment.image(f"base64://{base64_image}"))
+        log_info("消息发送完成", function_name)
 
     except Exception as e:
-        nonebot.logger.error(f"截图过程中发生错误：{str(e)}")
+        error_msg = f"截图过程中发生错误：{str(e)}"
+        log_error(error_msg, function_name, exc_info=True)
+        await bot.send(event, error_msg)
     finally:
-        nonebot.logger.info("关闭浏览器上下文")
-        await context.close()
+        if 'context' in locals():
+            log_info("关闭浏览器上下文", function_name)
+            await context.close()
 
     end_time = time.time()
     total_time = end_time - start_time
-    nonebot.logger.info(f"总耗时：{total_time:.2f} 秒")
+    log_info(f"处理完成，总耗时：{total_time:.2f} 秒", function_name)
 
-# 插件元数据
-__plugin_meta__ = {
-    "name": "网页截图插件",
-    "description": "自动截取用户发送的URL网页，支持懒加载内容",
-    "usage": "发送包含http或https开头的URL即可触发截图"
-}
 
-# 清理函数，在机器人关闭时调用
 async def cleanup():
+    function_name = "cleanup"
     global browser, playwright
     if browser:
+        log_info("关闭浏览器", function_name)
         await browser.close()
     if playwright:
+        log_info("停止 Playwright", function_name)
         await playwright.stop()
 
-# 注册清理函数，在退出时调用
 nonebot.get_driver().on_shutdown(cleanup)

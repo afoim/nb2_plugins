@@ -130,7 +130,7 @@ def get_system_info():
 
     # 网络流量信息
     net_io = psutil.net_io_counters()
-    info["总接收"] = f"{net_io.bytes_recv / (1024 ** 2):.2f} MB"
+    info["总接收"] = f"{net_io.bytes_recv / (1024 ** 3):.2f} GB"
     info["总发送"] = f"{net_io.bytes_sent / (1024 ** 3):.2f} GB"
 
     # 当前登录用户

@@ -5,6 +5,7 @@ from pathlib import Path
 import asyncio
 import re
 import traceback
+import logging
 
 import nonebot
 from nonebot import on_message
@@ -12,6 +13,41 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment
 from nonebot.typing import T_State
 from nonebot.adapters import Bot, Event
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+
+# 自定义Playwright日志处理器
+class PlaywrightLogHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            # 格式化日志消息
+            msg = self.format(record)
+            # 使用nonebot的日志记录器转发Playwright的日志
+            if record.levelno >= logging.ERROR:
+                nonebot.logger.error(f"[Playwright] {msg}")
+            elif record.levelno >= logging.WARNING:
+                nonebot.logger.warning(f"[Playwright] {msg}")
+            else:
+                nonebot.logger.info(f"[Playwright] {msg}")
+        except Exception:
+            self.handleError(record)
+
+# 设置Playwright日志
+def setup_playwright_logging():
+    # 创建Playwright日志记录器
+    playwright_logger = logging.getLogger('playwright')
+    playwright_logger.setLevel(logging.DEBUG)
+    
+    # 创建并配置自定义处理器
+    handler = PlaywrightLogHandler()
+    handler.setLevel(logging.DEBUG)
+    
+    # 创建格式化器
+    formatter = logging.Formatter('%(message)s')
+    handler.setFormatter(formatter)
+    
+    # 添加处理器到日志记录器
+    playwright_logger.addHandler(handler)
+    
+    return playwright_logger
 
 # 设置日志记录函数
 def log_info(message, function_name="Unknown"):
@@ -47,26 +83,37 @@ def load_blacklist():
 # 全局 playwright 实例
 playwright = None
 browser = None
+playwright_logger = None
 
 async def initialize_playwright():
-    global playwright, browser
+    global playwright, browser, playwright_logger
     function_name = "initialize_playwright"
     
     if playwright is None:
         log_info("开始初始化 Playwright", function_name)
+        
+        # 设置Playwright日志
+        playwright_logger = setup_playwright_logging()
+        
         playwright = await async_playwright().start()
         
         browser_args = [
             "--no-sandbox",
             "--disable-setuid-sandbox",
             "--disable-web-security",
-            "--disable-features=IsolateOrigins,site-per-process"
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--enable-logging",
+            "--v=1"
         ]
         if DEBUG:
             browser_args.append(f"--display={os.environ.get('DISPLAY', ':0')}")
         
         log_info(f"启动浏览器，参数：{browser_args}", function_name)
-        browser = await playwright.chromium.launch(headless=not DEBUG, args=browser_args)
+        browser = await playwright.chromium.launch(
+            headless=not DEBUG,
+            args=browser_args,
+            chromium_sandbox=False,
+        )
         log_info("浏览器启动完成", function_name)
 
 async def wait_for_network_idle(page):
@@ -190,6 +237,12 @@ async def process_url(bot: Bot, event: Event, url: str):
 
         log_info("创建新页面", function_name)
         page = await context.new_page()
+        
+        # 设置页面日志监听
+        page.on("console", lambda msg: nonebot.logger.info(f"[Browser Console] {msg.text}"))
+        page.on("pageerror", lambda err: nonebot.logger.error(f"[Browser Error] {err}"))
+        page.on("request", lambda request: nonebot.logger.debug(f"[Browser Request] {request.method} {request.url}"))
+        page.on("response", lambda response: nonebot.logger.debug(f"[Browser Response] {response.status} {response.url}"))
 
         log_info("开始导航到目标URL", function_name)
         response = await page.goto(url, timeout=30000, wait_until="domcontentloaded")
@@ -244,7 +297,7 @@ async def process_url(bot: Bot, event: Event, url: str):
             full_page=True,
             type='jpeg',
             quality=85,
-            timeout=60000  # 增加超时时间
+            timeout=60000
         )
         log_info(f"截图完成，大小: {len(screenshot)} 字节", function_name)
 
@@ -266,15 +319,19 @@ async def process_url(bot: Bot, event: Event, url: str):
     total_time = end_time - start_time
     log_info(f"处理完成，总耗时：{total_time:.2f} 秒", function_name)
 
-
 async def cleanup():
     function_name = "cleanup"
-    global browser, playwright
+    global browser, playwright, playwright_logger
     if browser:
         log_info("关闭浏览器", function_name)
         await browser.close()
     if playwright:
         log_info("停止 Playwright", function_name)
         await playwright.stop()
+    if playwright_logger:
+        # 清理日志处理器
+        for handler in playwright_logger.handlers[:]:
+            playwright_logger.removeHandler(handler)
+            handler.close()
 
 nonebot.get_driver().on_shutdown(cleanup)

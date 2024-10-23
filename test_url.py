@@ -9,13 +9,15 @@ test_url = on_command("URL测试", aliases={"/test_url"})
 
 # URL 分类字典
 url_categories = {
-    "Cloudflare": ["https://pic.onani.cn"],  # 示例，替换为实际 Cloudflare URL
-    "Github": ["https://github.com"],
+    "IPFS.IO（大部分IP被黑洞）": ["https://ipfs.io"],
+    "Fleek托管的网站": ["https://onani.cn"],
+    "CrossBell IPFS网关": ["https://ipfs.crossbell.io"],
+    "Cloudflare": ["https://cloudflare-pages-blog-fuwari.onani.cn"],  # 示例，替换为实际 Cloudflare URL
+    "Github（DNS污染+SNI阻断）": ["https://github.com"],
     "CN Bing": ["https://cn.bing.com"],
     "Docker安装脚本": ["https://get.docker.com"],
-    "Docker Hub": ["https://hub.docker.com"],
-    "Google": ["https://www.google.com"],
-    "Youtube": ["https://www.youtube.com"],
+    "Docker Hub（大部分IP被黑洞）": ["https://hub.docker.com"],
+    "Google（IP黑洞）": ["https://www.google.com"],
 }
 
 # 全局变量标记任务状态

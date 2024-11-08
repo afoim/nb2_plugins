@@ -1,15 +1,13 @@
-
-+-+-+-+-+-+-+-+ +-+ +-+-+-+-+
-|A|c|o|F|o|r|k| |\| |0|7|2|1|
-+-+-+-+-+-+-+-+ +-+ +-+-+-+-+
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|AcoFork ❤ Claude/GPT/Chatglm|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+
                           
-由Claude/GPT/Chatglm进行一次修改，二叉树树进行二次修改。
 Github - https://github.com/afoim/nb2_plugins
 博客 - http://www.onani.cn
 随机图API - https://pic.onani.cn
 
 
-###趣味生煎
+###趣味生煎：
 开盒
 表情包提取
 早安、晚安
@@ -19,19 +17,20 @@ Github - https://github.com/afoim/nb2_plugins
 离婚
 我的群老婆
 
-###0721
+###0721：
 recall
 群通知状态
 natmon
 
-###艾草
+###艾草：
 test_url
+nmap
 masscan
 whois
 ipinfo
 ping
 
-###AutoSay
-Send BILIBILI Video Tencent-QQ-CARD or URL KNOW MORE AND MORE
+###AutoSay：
+Send BILIBILI Video Tencent-QQ-CARD or URL KNOW MORE information
 /bilibilimusic <URL>
 

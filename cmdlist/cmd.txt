@@ -1,74 +1,37 @@
-AcoFork的
-使用NoneBot2框架
-特别鸣谢：ChatGPT、Claude
-制作者：二叉树树
-插件开源仓库：https://github.com/afoim/nb2_plugins
-AD：
-随机图：https://pic.onani.cn
 
-###开盒！
-命令：开盒
-作用：开盒喵！开盒喵！
++-+-+-+-+-+-+-+ +-+ +-+-+-+-+
+|A|c|o|F|o|r|k| |\| |0|7|2|1|
++-+-+-+-+-+-+-+ +-+ +-+-+-+-+
+                          
+由Claude/GPT/Chatglm进行一次修改，二叉树树进行二次修改。
+Github - https://github.com/afoim/nb2_plugins
+博客 - http://www.onani.cn
+随机图API - https://pic.onani.cn
 
-###test_url
-命令：test_url
-作用：测试预定义的URL，返回HTTP状态码和访问所需时间
 
-###recall
-命令：引用Bot发送的一条消息，然后附上/recall即可
-作用：撤回Bot发送的消息
-
-###bilibili
-命令：发送b23.tv、www.bilibili.com、QQ卡片
-作用：解析并发送b站视频相关信息并发送视频
-
-###bilimusic
-命令：/bilimusic 《哔哩哔哩视频URL》
-作用：提取哔哩哔哩视频音乐
-
-###ipinfo
-命令：/ipinfo 《IP或域名》
-作用：查询IP或域名的信息
-
-###ping
-命令：/ping 《IP或域名》
-作用：PING IP或域名
-
-###娶群友
-命令：
+###趣味生煎
+开盒
+表情包提取
+早安、晚安
+/hr、/vr
 娶群友
 强娶 @人
 离婚
 我的群老婆
 
-###nmap
-命令：/nmap 《IP或域名》
-作用：使用nmap xxx扫描域名或IP
+###0721
+recall
+群通知状态
+natmon
 
-###ri
-命令：/hr、/vr
-作用：随机横屏、竖屏美图
+###艾草
+test_url
+masscan
+whois
+ipinfo
+ping
 
-###sleep
-命令：早安、晚安
-作用：让Bot记录你的睡眠
+###AutoSay
+Send BILIBILI Video Tencent-QQ-CARD or URL KNOW MORE AND MORE
+/bilibilimusic <URL>
 
-###whois
-命令：/whois 《域名》
-作用：查询域名的whois记录
-
-###表情包提取
-命令：表情包提取
-作用：发送“表情包提取”后发送你想要获得URL的表情包，然后Bot会将URL发送给你
-
-###natmon
-命令：/natmon
-作用：查看服务器当前网络情况
-
-###群通知状态
-命令：群通知状态
-作用：控制入群和退群通知
-
-###Censys
-命令：/censys ip或域名
-作用：使用censys查询指定域名或ip

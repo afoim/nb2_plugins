@@ -6,10 +6,13 @@ from nonebot.plugin import PluginMetadata
 from playwright.async_api import async_playwright
 import base64
 from nonebot.log import logger
+import re
+from typing import List, Tuple
+import markdown
 
 __plugin_meta__ = PluginMetadata(
     name="喜报悲报生成器",
-    description="生成喜报或悲报图片",
+    description="生成喜报或悲报图片，支持图文混排、换行和Markdown语法",
     usage="喜报/悲报 <内容>",
     type="application",
     homepage="",
@@ -53,6 +56,7 @@ HTML_TEMPLATE = """
             align-items: center;
             background-color: white;
             position: relative;
+            overflow-y: auto;
         }}
         
         .content {{
@@ -63,8 +67,63 @@ HTML_TEMPLATE = """
             padding: 40px;
             font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
             line-height: 1.5;
-            white-space: pre-line;  /* 支持换行 */
             max-width: 80%;
+        }}
+        
+        .content p {{
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }}
+        
+        .content img {{
+            max-width: 300px;
+            max-height: 200px;
+            object-fit: contain;
+            vertical-align: middle;
+            margin: 0 10px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: inline-block;
+        }}
+        
+        .content h1 {{
+            font-size: 120px;
+            margin: 20px 0;
+        }}
+        
+        .content h2 {{
+            font-size: 100px;
+            margin: 18px 0;
+        }}
+        
+        .content h3 {{
+            font-size: 90px;
+            margin: 16px 0;
+        }}
+        
+        .content h4 {{
+            font-size: 85px;
+            margin: 14px 0;
+        }}
+        
+        .content h5 {{
+            font-size: 82px;
+            margin: 12px 0;
+        }}
+        
+        .content h6 {{
+            font-size: 80px;
+            margin: 10px 0;
+        }}
+        
+        .content .line {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px 0;
         }}
         
         .seal {{
@@ -94,10 +153,69 @@ HTML_TEMPLATE = """
 </html>
 """
 
-async def generate_news_image(content: str, is_happy: bool = True) -> bytes:
-    logger.debug(f"开始生成{'喜' if is_happy else '悲'}报图片，内容：{content}")
+def process_message(message: Message) -> List[Tuple[str, str]]:
+    """处理消息，将文本和图片URL分离并按顺序保存"""
+    elements = []
+    current_text = ""
     
-    # 设置颜色主题
+    for seg in message:
+        if seg.type == "text":
+            current_text += seg.data["text"]
+        elif seg.type == "image":
+            # 如果前面有文本且不以换行结尾，说明图片应该和文本在同一行
+            if current_text and not current_text.endswith('\n'):
+                elements.append(("inline_start", current_text))
+                elements.append(("image", seg.data.get("url", "")))
+                elements.append(("inline_end", ""))
+                current_text = ""
+            else:
+                # 如果之前有文本，先保存文本
+                if current_text:
+                    elements.append(("text", current_text))
+                    current_text = ""
+                # 保存图片URL
+                url = seg.data.get("url", "")
+                if url:
+                    elements.append(("image", url))
+    
+    # 保存最后的文本
+    if current_text:
+        elements.append(("text", current_text))
+    
+    return elements
+
+def elements_to_html(elements: List[Tuple[str, str]]) -> str:
+    """将元素列表转换为HTML内容"""
+    html_parts = []
+    in_line = False
+    
+    for type_, content in elements:
+        if type_ == "text":
+            # 将Markdown转换为HTML
+            html_content = markdown.markdown(content)
+            html_parts.append(html_content)
+        elif type_ == "image":
+            if in_line:
+                html_parts.append(f'<img src="{content}" />')
+            else:
+                html_parts.append(f'<p><img src="{content}" /></p>')
+        elif type_ == "inline_start":
+            in_line = True
+            # 将Markdown转换为HTML，但保持在同一行
+            html_content = markdown.markdown(content)
+            # 移除外层的<p>标签
+            html_content = html_content.replace("<p>", "").replace("</p>", "")
+            html_parts.append(f'<p>{html_content}')
+        elif type_ == "inline_end":
+            in_line = False
+            html_parts.append('</p>')
+    
+    return ''.join(html_parts)
+
+async def generate_news_image(content: List[Tuple[str, str]], is_happy: bool = True) -> bytes:
+    """生成新闻图片"""
+    logger.debug(f"开始生成{'喜' if is_happy else '悲'}报图片")
+    
     theme = {
         "happy": {
             "bg_color": "#FF4D4D",
@@ -118,17 +236,14 @@ async def generate_news_image(content: str, is_happy: bool = True) -> bytes:
     theme_config = theme["happy"] if is_happy else theme["sad"]
     
     try:
-        # 处理内容中的换行符
-        content = content.replace('\r\n', '\n').replace('\r', '\n')
+        content_html = elements_to_html(content)
         
-        # 生成HTML内容
         html_content = HTML_TEMPLATE.format(
-            content=content,
+            content=content_html,
             **theme_config
         )
         logger.debug("HTML模板生成成功")
         
-        # 使用Playwright生成图片
         async with async_playwright() as p:
             logger.debug("启动 Playwright")
             browser = await p.chromium.launch(
@@ -142,10 +257,12 @@ async def generate_news_image(content: str, is_happy: bool = True) -> bytes:
             await page.set_content(html_content)
             logger.debug("HTML内容设置成功")
             
+            # 等待图片加载完成
+            await page.wait_for_load_state("networkidle")
+            
             # 等待内容渲染完成
             await page.wait_for_selector('.content')
             
-            # 直接获取图片的字节数据
             screenshot_bytes = await page.screenshot()
             logger.debug(f"截图成功，数据大小：{len(screenshot_bytes)} bytes")
             
@@ -159,19 +276,21 @@ async def generate_news_image(content: str, is_happy: bool = True) -> bytes:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-async def process_news(content: str, is_happy: bool = True):
+async def process_news(message: Message, is_happy: bool = True):
+    """处理新闻生成请求"""
     try:
-        logger.info(f"开始处理{'喜' if is_happy else '悲'}报请求：{content}")
+        logger.info(f"开始处理{'喜' if is_happy else '悲'}报请求")
         
-        # 生成图片
-        image_bytes = await generate_news_image(content, is_happy)
+        elements = process_message(message)
+        if not elements:
+            return "请输入内容！"
+        
+        image_bytes = await generate_news_image(elements, is_happy)
         logger.debug("图片生成成功")
         
-        # 转换为base64
         base64_str = base64.b64encode(image_bytes).decode()
         logger.debug("Base64转换成功")
         
-        # 构造消息
         msg = MessageSegment.image(f"base64://{base64_str}")
         logger.debug("消息构造成功")
         
@@ -184,18 +303,16 @@ async def process_news(content: str, is_happy: bool = True):
 
 @happy_news.handle()
 async def handle_happy_news(args: Message = CommandArg()):
-    content = str(args).strip()  # 使用 str() 而不是 extract_plain_text() 来保留换行符
-    if not content:
+    if not args:
         await happy_news.finish("请输入喜报内容！")
     
-    result = await process_news(content, is_happy=True)
+    result = await process_news(args, is_happy=True)
     await happy_news.finish(result)
 
 @sad_news.handle()
 async def handle_sad_news(args: Message = CommandArg()):
-    content = str(args).strip()  # 使用 str() 而不是 extract_plain_text() 来保留换行符
-    if not content:
+    if not args:
         await sad_news.finish("请输入悲报内容！")
     
-    result = await process_news(content, is_happy=False)
+    result = await process_news(args, is_happy=False)
     await sad_news.finish(result)

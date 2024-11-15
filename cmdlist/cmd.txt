@@ -1,36 +1,60 @@
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |AcoFork ❤ Claude/GPT/Chatglm|
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-                          
+由Windows Server 2025 大力驱动！                          
 Github - https://github.com/afoim/nb2_plugins
-博客 - http://www.onani.cn
-随机图API - https://pic.onani.cn
+博客 - https://acofork.us.kg
+随机图API - https://pic.acofork.us.kg
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+带有*的功能为Administrator功能
 
+###Bot管理相关：
 
-###趣味生煎：
-开盒
-表情包提取
-早安、晚安
-/hr、/vr
-娶群友
+/cmd    ## 获取本帮助
+*禁言 @人
+*解除禁言 @人
+*踢人 @人
+*群通知状态     ## 管理加群/退群事件监听
+*/recall
+
+###群聊互动相关：
+
+给我头衔 <你想要的头衔（中文6字以内，英文不限）>  ## 需要Bot为群主
+喜报/悲报 <MarkDown>
+表情包提取      ## 可以提取QQ商城表情包和自创表情包
+hr/vr   ## 从AcoFork的二次元随机图床中获取横屏（hr）、竖屏（vr）图片
+晚安/早安   ## 可以让Bot记录你的睡眠时间（计时器功能）
+
+###娶群友功能：
+
+娶群友 @人
+离婚 @人
 强娶 @人
-离婚
 我的群老婆
+*#重置娶群友
 
-###0721：
-recall
-群通知状态
-natmon
+###B站相关：
 
-###艾草：
-test_url
-nmap
-masscan
-whois
-ipinfo
-ping
+1. 直接发送B站视频小卡片或者B站视频连接即可自动解析详情并发送480P原视频（支持b23tv短链接）
+2. /bilimusic <B站音乐URL>
 
-###AutoSay：
-Send BILIBILI Video Tencent-QQ-CARD or URL KNOW MORE information
-/bilibilimusic <URL>
+###开发相关：
 
+/status     ## 获取Bot及其宿主机详情（fastfetch）
+技术栈 <域名>   ## 查询域名技术栈
+/Internet   ## 查询Bot使用的网络
+/ipinfo <IP或域名>  ## 查询IP或域名的详情
+/netmon     ## 获取Bot网络当前占用情况
+/nmap <IP或域名>    ## 使用nmap扫描指定IP或域名的开放端口
+/ping <IP或域名> 
+/test_url   ## 测试网络连通性
+/whois <IP或域名> 
+
+###服务型功能（达到条件自动触发）：
+
+1. 获取到https://或http://的协议头后自动请求该URL并返回网页截图
+
+###内部功能：
+
+imgd start  ## 监听图片URL并且自动保存到本地，用于自动化QQ爬图
+imgd stop   ## 

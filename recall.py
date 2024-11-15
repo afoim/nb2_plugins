@@ -28,4 +28,4 @@ async def handle_recall(bot: Bot, event: GroupMessageEvent, state: T_State):
         # 成功撤回后，尝试撤回发起人的 /recall 消息
         await bot.delete_msg(message_id=event.message_id)
     except Exception as e:
-        await recall.finish(f"撤回失败：{str(e)}")
+        return

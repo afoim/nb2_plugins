@@ -18,7 +18,7 @@ if not os.path.exists("img"):
 
 # 命令处理器
 start_cmd = on_command("imgd start", permission=SUPERUSER, priority=1, block=True)
-stop_cmd = on_command("imgd down", permission=SUPERUSER, priority=1, block=True)
+stop_cmd = on_command("imgd stop", permission=SUPERUSER, priority=1, block=True)
 
 @start_cmd.handle()
 async def handle_start(bot: Bot, event: MessageEvent):

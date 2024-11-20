@@ -37,7 +37,7 @@ async def handle_bilibili_url(bot: Bot, event: Event):
 
         except json.JSONDecodeError as e:
             nonebot.logger.error(f"JSON 解析错误: {e}")
-            await bot.send(event, "提取的 JSON 数据格式错误。")
+            # await bot.send(event, "提取的 JSON 数据格式错误。")
             return
 
     # 正则表达式匹配Bilibili的BV号或URL

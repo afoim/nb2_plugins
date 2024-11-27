@@ -19,7 +19,7 @@ async def handle_emoji(bot: Bot, event: MessageEvent, state: T_State):
         if seg.type == "mface":
             url = seg.data.get("url", "")
             if url:
-                await extract_emoji.finish(f"提取到表情包完整链接了喵！( ´ ▽ ` ) ：\n{url}")
+                await extract_emoji.finish(f"{url}")
         elif seg.type == "image":
             url = seg.data.get("url", "")
             if url:

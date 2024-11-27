@@ -9,11 +9,16 @@ test_url = on_command("URL测试", aliases={"/test_url"})
 
 # URL 分类字典
 url_categories = {
+    "X": ["https://x.com"],
+    "Pixiv": ["https://www.pixiv.net"],
     "IPFS.IO（大部分IP被黑洞）": ["https://ipfs.io"],
-    "Fleek托管的网站": ["https://onani.cn"],
+    "Fleek": ["https://fleek.xyz"],
+    "Vercel": ["https://vercel.app"],
     "CrossBell IPFS网关": ["https://ipfs.crossbell.io"],
-    "Cloudflare": ["https://cloudflare-pages-blog-fuwari.onani.cn"],  # 示例，替换为实际 Cloudflare URL
+    "Cloudflare": ["https://dash.cloudflare.com"],  # 示例，替换为实际 Cloudflare URL
     "Github（DNS污染+SNI阻断）": ["https://github.com"],
+    "Github Page": ["https://github.io"],
+    "GHCR": ["https://ghcr.io"],
     "CN Bing": ["https://cn.bing.com"],
     "Docker安装脚本": ["https://get.docker.com"],
     "Docker Hub（大部分IP被黑洞）": ["https://hub.docker.com"],

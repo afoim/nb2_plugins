@@ -23,6 +23,6 @@ async def handle_emoji(bot: Bot, event: MessageEvent, state: T_State):
         elif seg.type == "image":
             url = seg.data.get("url", "")
             if url:
-                await extract_emoji.finish(f"提取到图片链接了喵！( ´ ▽ ` ) ：\n{url}")
+                await extract_emoji.finish(f"{url}")
 
     await extract_emoji.reject("抱歉，未能提取到表情包或图片链接呜。请再次发送表情包或发送 '取消' 以关闭功能。")

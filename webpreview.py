@@ -105,17 +105,29 @@ def load_blacklist():
             return [re.compile(pattern) for pattern in patterns]
     return []
 
+def parse_message(message: str):
+    """解析消息，提取URL和等待时间"""
+    # 匹配URL和可选的时间参数
+    pattern = r'(https?://\S+)(?:\s+-(\d+))?'
+    match = re.match(pattern, message.strip())
+    if match:
+        url = match.group(1)
+        wait_time = int(match.group(2)) if match.group(2) else 0
+        return url, wait_time
+    return None, 0
+
 @url_matcher.handle()
 async def handle_url(bot: Bot, event: Event):
     """处理URL消息"""
     message = str(event.get_message())
     
-    # 检查是否是URL
-    if not re.match(r'https?://', message):
+    # 解析消息
+    url, wait_time = parse_message(message)
+    if not url:
         return
 
     # 检查黑名单
-    if any(pattern.match(message) for pattern in load_blacklist()):
+    if any(pattern.match(url) for pattern in load_blacklist()):
         return
 
     try:
@@ -130,12 +142,17 @@ async def handle_url(bot: Bot, event: Event):
             page = await context.new_page()
             
             # 导航到URL
-            await page.goto(message, wait_until="domcontentloaded")
+            await page.goto(url, wait_until="domcontentloaded")
             
             # 等待网络活动减少
             if await preview.wait_for_network_quiet(page):
                 # 模拟滚动
                 await preview.simulate_scroll(page)
+                
+                # 如果指定了等待时间，则等待
+                if wait_time > 0:
+                    log_info(f"等待 {wait_time} 秒", "handle_url")
+                    await asyncio.sleep(wait_time)
                 
                 # 截图
                 screenshot = await page.screenshot(full_page=True, type='jpeg', quality=85)

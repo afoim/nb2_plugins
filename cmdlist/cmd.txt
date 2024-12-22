@@ -3,7 +3,8 @@
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 由Windows Server 2025 大力驱动！                          
 Github - https://github.com/afoim/nb2_plugins
-博客 - https://acofork.us.kg
+Blog - https://smart.acofork.us.kg
+Doc - https://onani.cn
 随机图API - https://pic.acofork.us.kg
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 带有*的功能为Administrator功能
@@ -11,14 +12,20 @@ Github - https://github.com/afoim/nb2_plugins
 ###Bot管理相关：
 
 /cmd    ## 获取本帮助
+/msg xxx    ## 通过Bot给维护者传输点什么东西
 *禁言 @人
 *解除禁言 @人
 *踢人 @人
 *群通知状态     ## 管理加群/退群事件监听
 */recall
 
+###星之阁API
+/163music {歌名}    ##搜索网易云音乐
+/kugoumusic {歌名}    ##搜索酷狗音乐
+
 ###群聊互动相关：
 
+/qlogo 或 /qlogo QQ号   ##获取自己的或者指定QQ的头像和直链
 给我头衔 <你想要的头衔（中文6字以内，英文不限）>  ## 需要Bot为群主
 喜报/悲报 <MarkDown>
 表情包提取      ## 可以提取QQ商城表情包和自创表情包

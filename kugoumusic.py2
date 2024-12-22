@@ -1,0 +1,106 @@
+import nonebot
+from nonebot import on_command
+from nonebot.adapters.onebot.v11 import Message, MessageSegment
+import httpx
+import logging
+
+# # 配置日志
+# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# 创建一个 NoneBot2 插件命令：/163music {歌名}
+music = on_command("kugoumusic", aliases={"音乐"}, priority=5)
+
+async def fetch_music_info(song_name: str, n: int = 0):
+    """请求接口获取歌曲信息，保持大小写不变"""
+    # 清除前后空格
+    song_name = song_name.strip()
+
+    # 拼接 URL
+    url = f"https://api.xingzhige.com/API/Kugou_GN_new/?name={song_name}"
+    if n > 0:
+        url += f"&n={n}"
+
+    # 打印拼接的 URL 到控制台
+    logging.debug(f"Requesting URL: {url}")
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        logging.error(f"Failed to fetch data, status code: {response.status_code}")
+        return None
+
+@music.handle()
+async def handle_music_query(bot, event, state):
+    # 获取用户输入的内容，去掉命令部分（比如 "/163music"）
+    song_name = event.get_plaintext().strip()
+    
+    # 只获取命令后面的歌曲名，忽略 "/163music" 部分
+    if song_name.startswith("/kugoumusic "):
+        song_name = song_name[9:].strip()
+
+    if not song_name:
+        await music.finish("请输入歌曲名！")
+    
+    # 获取歌曲信息，保持用户输入的原始大小写
+    music_info = await fetch_music_info(song_name)
+    
+    if not music_info or music_info.get("code") != 0:
+        await music.finish("未找到相关歌曲，请检查歌名并重试。")
+    
+    # 获取候选歌曲列表
+    song_list = music_info["data"]
+    if not song_list:
+        await music.finish("未找到相关歌曲，请检查歌名并重试。")
+    
+    # 格式化候选歌曲列表
+    song_options = "\n".join([f"{i+1}. {song['songname']} - {song['name']}" for i, song in enumerate(song_list)])
+    song_info = (
+        f"找到以下相关歌曲：\n{song_options}\n\n"
+        "请输入数字（如 1 或 2）选择歌曲获取详细信息。"
+    )
+    
+    # 保存歌曲列表在 state 中
+    state["song_list"] = song_list
+    
+    await music.send(Message(song_info))
+
+@music.got("song_choice", prompt="请输入数字（如 1 或 2）选择歌曲获取详细信息")
+async def handle_song_choice(bot, event, state):
+    choice = event.get_plaintext().strip()
+    try:
+        choice = int(choice) - 1
+        song_list = state["song_list"]
+        if choice < 0 or choice >= len(song_list):
+            await music.finish("无效的选择，请重新输入。")
+        
+        song_data = song_list[choice]
+        # 获取更详细的音质信息
+        music_info = await fetch_music_info(song_data["songname"], n=1)
+        
+        if not music_info or music_info.get("code") != 0:
+            await music.finish("无法获取更详细信息，可能是版权受限或者资源不存在。")
+        
+        song_data = music_info["data"]
+        
+        # 格式化并发送详细信息
+        detailed_info = (
+            f"歌曲名: {song_data['songname']}\n"
+            f"歌手: {song_data['name']}\n"
+            f"专辑: {song_data['album']}\n"
+            f"版权: {song_data['pay']}\n"
+            f"音质: {song_data['quality']}\n"
+            f"时长: {song_data['interval']}\n"
+            f"大小: {song_data['size']}\n"
+            f"比特率: {song_data['kbps']}\n"
+            f"歌曲链接: {song_data['songurl']}\n"
+            f"封面: {song_data['cover']}\n"
+            f"试听链接: {song_data['src']}\n"
+        )
+        
+        await music.send(Message(detailed_info))
+    
+    except ValueError:
+        await music.finish("无效的输入，请输入一个有效的数字。")

@@ -3,8 +3,8 @@
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 由Windows Server 2025 大力驱动！                          
 Github - https://github.com/afoim/nb2_plugins
-Blog - https://smart.acofork.us.kg
-Doc - https://onani.cn
+Blog - https://onani.cn
+Doc - https://www.onani.cn
 随机图API - https://pic.acofork.us.kg
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 带有*的功能为Administrator功能

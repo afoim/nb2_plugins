@@ -1,10 +1,10 @@
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|AcoFork ❤ Claude/GPT/Chatglm|
+|AcoFork ❤ Claude/GPT/Cursor|
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-由Windows Server 2025 大力驱动！                          
+由AI大力驱动！                          
 Github - https://github.com/afoim/nb2_plugins
 Blog - https://onani.cn
-Doc - https://www.onani.cn
+Record - https://onani.cn/record
 随机图API - https://pic.acofork.us.kg
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 带有*的功能为Administrator功能
@@ -19,9 +19,6 @@ Doc - https://www.onani.cn
 *群通知状态     ## 管理加群/退群事件监听
 */recall
 
-###星之阁API
-/163music {歌名}    ##搜索网易云音乐
-/kugoumusic {歌名}    ##搜索酷狗音乐
 
 ###群聊互动相关：
 

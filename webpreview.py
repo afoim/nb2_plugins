@@ -42,53 +42,20 @@ class WebPreview:
         if self.playwright:
             await self.playwright.stop()
 
-    async def wait_for_network_quiet(self, page, threshold=2, timeout=30000):
-        """等待活动网络请求数降至阈值以下"""
-        active_requests = set()
-
-        def on_request(request):
-            if not any(domain in request.url for domain in ['google-analytics', 'doubleclick.net']):
-                active_requests.add(request)
-                log_info(f"活动请求数: {len(active_requests)}", "network_wait")
-
-        def on_response(response):
-            if response.request in active_requests:
-                active_requests.remove(response.request)
-                log_info(f"活动请求数: {len(active_requests)}", "network_wait")
-
-        page.on("request", on_request)
-        page.on("response", on_response)
-
-        try:
-            start_time = time.time() * 1000
-            while (time.time() * 1000 - start_time) < timeout:
-                if len(active_requests) <= threshold:
-                    return True
-                await asyncio.sleep(0.1)
-            return False
-        finally:
-            page.remove_listener("request", on_request)
-            page.remove_listener("response", on_response)
-
-    async def simulate_scroll(self, page):
-        """模拟页面滚动"""
-        viewport_height = VIEWPORT["height"]
-        scroll_height = await page.evaluate("""() => {
-            return Math.max(
-                document.documentElement.scrollHeight,
-                document.body.scrollHeight,
-                document.documentElement.clientHeight
-            );
+    async def optimize_page(self, page):
+        """优化页面显示"""
+        # 隐藏固定定位的元素（通常是弹窗或悬浮窗）
+        await page.evaluate("""() => {
+            const elements = document.querySelectorAll('*');
+            for (const el of elements) {
+                const style = window.getComputedStyle(el);
+                if (style.position === 'fixed' || style.position === 'sticky') {
+                    el.style.display = 'none';
+                }
+            }
         }""")
         
-        # 滚动步长为视口高度的一半
-        step = viewport_height // 2
-        for pos in range(0, scroll_height + step, step):
-            await page.evaluate(f"window.scrollTo(0, {pos})")
-            await asyncio.sleep(0.5)
-        
-        # 最后滚动回顶部
-        await page.evaluate("window.scrollTo(0, 0)")
+        # 等待一下以确保页面渲染完成
         await asyncio.sleep(1)
 
 preview = WebPreview()
@@ -137,33 +104,58 @@ async def handle_url(bot: Bot, event: Event):
         # 创建新页面
         async with await preview.browser.new_context(
             viewport=VIEWPORT,
-            user_agent=USER_AGENT
+            user_agent=USER_AGENT,
+            java_script_enabled=True
         ) as context:
             page = await context.new_page()
             
-            # 导航到URL
-            await page.goto(url, wait_until="domcontentloaded")
+            # 设置更多选项来优化加载
+            await page.set_extra_http_headers({"Accept-Language": "zh-CN,zh;q=0.9"})
             
-            # 等待网络活动减少
-            if await preview.wait_for_network_quiet(page):
-                # 模拟滚动
-                await preview.simulate_scroll(page)
-                
-                # 如果指定了等待时间，则等待
-                if wait_time > 0:
-                    log_info(f"等待 {wait_time} 秒", "handle_url")
-                    await asyncio.sleep(wait_time)
-                
-                # 截图
-                screenshot = await page.screenshot(full_page=True, type='jpeg', quality=85)
-                
-                # 发送消息
-                await bot.send(event, 
-                    MessageSegment.reply(event.message_id) +
-                    MessageSegment.image(f"base64://{base64.b64encode(screenshot).decode('utf-8')}")
-                )
-            else:
-                await bot.send(event, "截图失败：网页加载超时")
+            # 导航到URL并等待网络空闲
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # 优化页面显示
+            await preview.optimize_page(page)
+            
+            # 如果指定了等待时间，则等待
+            if wait_time > 0:
+                log_info(f"等待 {wait_time} 秒", "handle_url")
+                await asyncio.sleep(wait_time)
+            
+            # 获取页面实际高度并设置视口
+            page_dimensions = await page.evaluate("""() => {
+                return {
+                    width: Math.max(
+                        document.documentElement.scrollWidth,
+                        document.body.scrollWidth
+                    ),
+                    height: Math.max(
+                        document.documentElement.scrollHeight,
+                        document.body.scrollHeight
+                    )
+                }
+            }""")
+            
+            # 调整视口大小以适应完整内容
+            await page.set_viewport_size({
+                "width": min(page_dimensions["width"], VIEWPORT["width"]),
+                "height": page_dimensions["height"]
+            })
+            
+            # 截图
+            screenshot = await page.screenshot(
+                full_page=True,
+                type='jpeg',
+                quality=85,
+                scale="device"
+            )
+            
+            # 发送消息
+            await bot.send(event, 
+                MessageSegment.reply(event.message_id) +
+                MessageSegment.image(f"base64://{base64.b64encode(screenshot).decode('utf-8')}")
+            )
                 
     except Exception as e:
         log_error(f"处理URL失败: {str(e)}", "handle_url")

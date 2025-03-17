@@ -19,3 +19,5 @@ selenium
 # pyppeteer-stealth
 #pycuda
 markdown
+jieba
+pypinyin

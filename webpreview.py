@@ -159,7 +159,7 @@ async def handle_url(bot: Bot, event: Event):
                 
     except Exception as e:
         log_error(f"处理URL失败: {str(e)}", "handle_url")
-        await bot.send(event, f"截图失败: {str(e)}")
+        # await bot.send(event, f"截图失败: {str(e)}")
 
 # 关闭时清理资源
 nonebot.get_driver().on_shutdown(preview.cleanup)

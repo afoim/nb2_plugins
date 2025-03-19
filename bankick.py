@@ -4,9 +4,6 @@ from nonebot.permission import SUPERUSER
 from nonebot.message import event_preprocessor
 from nonebot.exception import IgnoredException
 
-# 定义超级用户的QQ号
-SUPERUSER_ID = 2973517380
-
 # 定义管理命令
 admin_commands = ["禁言", "踢人", "解除禁言"]
 
@@ -18,7 +15,7 @@ async def preprocess_admin_commands(bot: Bot, event: GroupMessageEvent):
         if message and message[0].type == "text":
             command = message[0].data["text"].strip()
             if any(command.startswith(cmd) for cmd in admin_commands):
-                if event.user_id == SUPERUSER_ID:
+                if await SUPERUSER(bot, event):  # 使用SUPERUSER权限检查
                     try:
                         await handle_admin_command(bot, event)
                     except Exception as e:

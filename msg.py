@@ -3,6 +3,10 @@ from nonebot import on_command
 from nonebot.adapters.onebot.v11 import Bot, Event, GroupMessageEvent
 from nonebot.log import logger
 from datetime import datetime
+from nonebot.drivers import Driver
+
+# 获取驱动器实例
+driver = nonebot.get_driver()
 
 # 添加详细日志记录
 logger.add("forward_msg_debug.log", rotation="10 MB", level="DEBUG")
@@ -62,13 +66,16 @@ async def handle_forward_msg(bot: Bot, event: Event):
         # logger.debug(f"构建的转发消息:\n{forward_content}")
         
         try:
-            # 转发消息
-            await bot.send_private_msg(user_id=2973517380, message=forward_content)
-            # logger.info("消息转发成功")
-            await forward_msg.finish("消息转发成功")
+            # 获取超级用户列表
+            superusers = list(driver.config.superusers)
+            if not superusers:
+                await forward_msg.finish("未配置超级用户，消息转发失败", reply_message=True)
+                return
+            
+            # 转发给第一个超级用户
+            await bot.send_private_msg(user_id=int(superusers[0]), message=forward_content)
+            await forward_msg.finish("消息转发成功", reply_message=True)
         except Exception as forward_error:
-            # logger.error(f"转发消息失败: {forward_error}")
-            # await forward_msg.finish(f"消息转发失败：{str(forward_error)}")
             return
     
     except Exception as e:

@@ -42,25 +42,24 @@ async def resolve_domain(host: str) -> str:
 async def get_ip_info(ip: str, original_input: str) -> str:
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://webapi-pc.meitu.com/common/ip_location?ip={ip}") as resp:
+            async with session.get(f"http://ip-api.com/json/{ip}?lang=zh-CN") as resp:
                 data = await resp.json()
 
-        if data['code'] != 0:
+        if data['status'] != 'success':
             return f"查询失败: {data.get('message', '未知错误')}"
-
-        ip_data = data['data'].get(ip, {})
         
         return (
-            f"查询接口: meitu.com\n"
+            f"查询接口: ip-api.com\n"
             f"查询结果 (输入: {original_input}):\n"
             f"IP: {ip}\n"
-            f"国家: {ip_data.get('nation', '')}\n"
-            f"省份: {ip_data.get('province', '')}\n"
-            f"城市: {ip_data.get('city', '')}\n"
-            f"时区: {ip_data.get('time_zone', '')}\n"
-            f"纬度: {ip_data.get('latitude', '')}\n"
-            f"经度: {ip_data.get('longitude', '')}\n"
-            f"ISP: {ip_data.get('isp', '')}\n"
+            f"国家: {data.get('country', '')}\n"
+            f"省份: {data.get('regionName', '')}\n"
+            f"城市: {data.get('city', '')}\n"
+            f"时区: {data.get('timezone', '')}\n"
+            f"纬度: {data.get('lat', '')}\n"
+            f"经度: {data.get('lon', '')}\n"
+            f"ISP: {data.get('isp', '')}\n"
+            f"组织: {data.get('org', '')}\n"
         )
     except Exception as e:
         return f"查询失败: {str(e)}"

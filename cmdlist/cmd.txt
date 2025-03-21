@@ -5,7 +5,7 @@
 Github - https://github.com/afoim/nb2_plugins
 Blog - https://onani.cn
 Record - https://onani.cn/record
-随机图API - https://pic.acofork.us.kg
+随机图API - https://pic.onani.cn
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 带有*的功能为Administrator功能
 

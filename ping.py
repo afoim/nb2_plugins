@@ -1,6 +1,6 @@
 from nonebot import on_command
 from nonebot.adapters import Bot, Event
-import subprocess
+import asyncio
 import platform
 
 ping = on_command("ping", aliases={"ping"})
@@ -21,10 +21,23 @@ async def handle_ping(bot: Bot, event: Event):
         command = f"ping -c 4 {ip_address}"  # Linux/macOS 使用 -c 指定次数
 
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        if result.returncode == 0:
-            await ping.send(result.stdout.strip())
+        # 使用异步子进程运行 ping 命令
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        # 异步等待命令执行完成并获取输出
+        stdout_bytes, stderr_bytes = await process.communicate()
+        
+        # 将字节输出转换为字符串
+        stdout = stdout_bytes.decode('utf-8')
+        stderr = stderr_bytes.decode('utf-8')
+        
+        if process.returncode == 0:
+            await ping.send(stdout.strip())
         else:
-            await ping.send(f"Ping 操作失败: {result.stderr.strip()}")
+            await ping.send(f"Ping 操作失败: {stderr.strip()}")
     except Exception as e:
         await ping.send(f"发生错误: {str(e)}")

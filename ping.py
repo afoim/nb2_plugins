@@ -3,7 +3,7 @@ from nonebot.adapters import Bot, Event
 import asyncio
 import platform
 
-ping = on_command("ping", aliases={"ping"})
+ping = on_command("/ping")
 
 @ping.handle()
 async def handle_ping(bot: Bot, event: Event):
